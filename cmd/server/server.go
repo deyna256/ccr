@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/task-planner/server/internal/correlation"
 	"github.com/task-planner/server/internal/httplog"
 	"github.com/task-planner/server/internal/task"
+	"github.com/task-planner/server/ui"
 )
 
 func newServer(cfg Config, db *sql.DB, log *slog.Logger) *http.Server {
@@ -42,6 +44,9 @@ func newServer(cfg Config, db *sql.DB, log *slog.Logger) *http.Server {
 		})
 	})
 
+	distFS, _ := fs.Sub(ui.FS, "dist")
+	r.Handle("/*", spaHandler(distFS))
+
 	handler := correlation.Middleware(httplog.Middleware(log)(r))
 
 	return &http.Server{
@@ -52,4 +57,19 @@ func newServer(cfg Config, db *sql.DB, log *slog.Logger) *http.Server {
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
+}
+
+func spaHandler(fsys fs.FS) http.Handler {
+	srv := http.FileServer(http.FS(fsys))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if path == "/" || path == "" {
+			srv.ServeHTTP(w, r)
+			return
+		}
+		if _, err := fsys.Open(path[1:]); err != nil {
+			r.URL.Path = "/"
+		}
+		srv.ServeHTTP(w, r)
+	})
 }

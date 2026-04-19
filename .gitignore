@@ -32,6 +32,11 @@ Thumbs.db
 # Build
 /dist
 /bin
+coverage.out
+
+# UI
+ui/node_modules/
+ui/dist/
 
 # Docker
 .docker/

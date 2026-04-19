@@ -1,0 +1,13 @@
+.git
+.claude
+docs
+*.md
+coverage.out
+ui/node_modules
+ui/src
+ui/*.config.*
+ui/tsconfig*
+ui/package*.json
+ui/index.html
+ui/postcss.config.js
+ui/.gitignore

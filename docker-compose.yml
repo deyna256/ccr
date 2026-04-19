@@ -14,7 +14,6 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./frontend/dist:/srv:ro
       - caddy_data:/data
     depends_on:
       - backend
@@ -22,8 +21,8 @@ services:
     restart: unless-stopped
 
   backend:
-    build: ./backend
-    image: ghcr.io/${ORG:-task-planner}/backend:${VERSION:-latest}
+    build: .
+    image: ghcr.io/${ORG:-ccr}/server:${VERSION:-latest}
     expose:
       - "8080"
     environment:
