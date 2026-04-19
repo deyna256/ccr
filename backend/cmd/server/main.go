@@ -11,15 +11,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/lib/pq"
 
 	"github.com/task-planner/server/internal/correlation"
-	"github.com/task-planner/server/internal/httplog"
 	"github.com/task-planner/server/internal/logging"
 )
 
@@ -39,22 +36,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	router := chi.NewRouter()
-	router.Use(middleware.RealIP)
-	router.Use(middleware.Recoverer)
-
-	handler := correlation.Middleware(
-		httplog.Middleware(log)(router),
-	)
-
-	srv := &http.Server{
-		Addr:              cfg.Addr,
-		Handler:           handler,
-		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      10 * time.Second,
-		IdleTimeout:       120 * time.Second,
-	}
+	srv := newServer(cfg, db, log)
 
 	go func() {
 		log.Info("server started", slog.String("addr", cfg.Addr))
