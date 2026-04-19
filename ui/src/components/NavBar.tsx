@@ -1,6 +1,6 @@
 import { logout } from '../api/auth'
 
-type Tab = 'calendar' | 'settings'
+type Tab = 'calendar' | 'tasks' | 'settings'
 
 interface NavBarProps {
   activeTab: Tab
@@ -9,6 +9,7 @@ interface NavBarProps {
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'calendar', label: 'Calendar' },
+  { id: 'tasks', label: 'Tasks' },
   { id: 'settings', label: 'Settings' },
 ]
 

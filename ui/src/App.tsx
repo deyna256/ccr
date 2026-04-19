@@ -3,10 +3,11 @@ import { getAccessToken } from './api/client'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import CalendarPage from './pages/CalendarPage'
+import TasksPage from './pages/TasksPage'
 import SettingsPage from './pages/SettingsPage'
 import NavBar from './components/NavBar'
 
-type Tab = 'calendar' | 'settings'
+type Tab = 'calendar' | 'tasks' | 'settings'
 
 export default function App() {
   const [loading, setLoading] = useState(true)
@@ -41,11 +42,11 @@ export default function App() {
     return <LoginPage />
   }
 
-  // Main app
   return (
     <div className="min-h-screen bg-ink">
       <NavBar activeTab={activeTab} onTabChange={setActiveTab} />
       {activeTab === 'calendar' && <CalendarPage />}
+      {activeTab === 'tasks' && <TasksPage />}
       {activeTab === 'settings' && <SettingsPage />}
     </div>
   )
