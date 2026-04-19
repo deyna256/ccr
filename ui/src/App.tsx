@@ -27,7 +27,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+      <div className="min-h-screen bg-ink flex items-center justify-center">
         <p className="text-zinc-500">Loading...</p>
       </div>
     )
@@ -45,7 +45,7 @@ export default function App() {
 
   // Main app
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-screen bg-ink">
       <NavBar activeTab={activeTab} onTabChange={setActiveTab} />
       {activeTab === 'calendar' && <CalendarPage />}
       {activeTab === 'settings' && <SettingsPage />}

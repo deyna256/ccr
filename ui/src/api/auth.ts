@@ -22,6 +22,9 @@ export async function login(req: LoginRequest): Promise<LoginResponse> {
   })
 
   const data = await response.json()
+  if (!response.ok) {
+    throw new Error(data.error ?? response.statusText)
+  }
   setAccessToken(data.access_token)
   localStorage.setItem('refresh_token', data.refresh_token)
   return data
@@ -34,6 +37,9 @@ export async function register(req: RegisterRequest): Promise<LoginResponse> {
   })
 
   const data = await response.json()
+  if (!response.ok) {
+    throw new Error(data.error ?? response.statusText)
+  }
   setAccessToken(data.access_token)
   localStorage.setItem('refresh_token', data.refresh_token)
   return data
