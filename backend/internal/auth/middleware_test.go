@@ -50,7 +50,7 @@ func TestMiddleware_malformedBearer(t *testing.T) {
 	}
 }
 
-func TestMiddleware_validToken_injectsUserID(t *testing.T) {
+func TestMiddleware_validToken(t *testing.T) {
 	token := issueTestToken(t, "secret")
 	var gotID string
 	h := auth.Middleware("secret")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

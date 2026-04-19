@@ -24,5 +24,7 @@ type UpdateRequest struct {
 	Color string `json:"color"`
 }
 
-var ErrNotFound = errors.New("not found")
-var ErrInvalid  = errors.New("invalid input")
+var (
+	ErrNotFound = errors.New("not found")
+	ErrInvalid  = errors.New("invalid input")
+)

@@ -41,5 +41,7 @@ type Claims struct {
 	UserID string
 }
 
-var ErrNotFound  = errors.New("not found")
-var ErrDuplicate = errors.New("duplicate")
+var (
+	ErrNotFound  = errors.New("not found")
+	ErrDuplicate = errors.New("duplicate")
+)

@@ -48,7 +48,7 @@ func TestService_Create_invalidColor(t *testing.T) {
 	}
 }
 
-func TestService_Create_emptyColor_defaults(t *testing.T) {
+func TestService_Create_emptyColor(t *testing.T) {
 	var gotColor string
 	st := &stubStorage{
 		create: func(_ context.Context, _, _, color string) (category.Category, error) {
