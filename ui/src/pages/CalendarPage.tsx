@@ -51,23 +51,19 @@ export default function CalendarPage() {
     const task = tasks.find(t => t.id === taskId)
     if (!task) return
 
-    const newStartISO = newStart.toISOString()
-
-    // optimistic update
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, start_time: newStartISO } : t))
-
     try {
       await updateTask(taskId, {
         type: task.type,
         title: task.title,
         description: task.description,
-        start_time: newStartISO,
+        start_time: newStart.toISOString(),
         duration_minutes: task.duration_minutes,
         category_id: task.category_id,
       })
+      const updated = await listTasks()
+      setTasks(updated)
     } catch {
-      // rollback
-      setTasks(prev => prev.map(t => t.id === taskId ? task : t))
+      // task stays in place on error
     }
   }
 

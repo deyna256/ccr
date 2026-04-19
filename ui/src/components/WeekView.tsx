@@ -195,7 +195,7 @@ export default function WeekView({
                       style={{
                         top: `${top}rem`,
                         height: `${height}rem`,
-                        backgroundColor: color + '28',
+                        backgroundColor: color + '4D',
                         borderLeft: `2px solid ${color}`,
                       }}
                     >

@@ -11,22 +11,29 @@ interface TaskFormProps {
 }
 
 function toDateInput(d: Date): string {
-  return d.toISOString().split('T')[0]
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function toTimeInput(d: Date): string {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
 export default function TaskForm({ task, categories, initialDate, onClose, onSaved }: TaskFormProps) {
   const [type, setType] = useState<TaskType>(task?.type ?? 'task')
   const [title, setTitle] = useState(task?.title ?? '')
   const [description, setDescription] = useState(task?.description ?? '')
+
+  const startDate = task?.start_time ? new Date(task.start_time) : null
+
   const [date, setDate] = useState(
-    task?.start_time
-      ? task.start_time.split('T')[0]
+    startDate
+      ? toDateInput(startDate)
       : initialDate
         ? toDateInput(initialDate)
         : toDateInput(new Date()),
   )
   const [startTime, setStartTime] = useState(
-    task?.start_time ? task.start_time.split('T')[1]?.slice(0, 5) : '09:00',
+    startDate ? toTimeInput(startDate) : '09:00',
   )
   const [duration, setDuration] = useState(task?.duration_minutes?.toString() ?? '60')
   const [categoryId, setCategoryId] = useState(task?.category_id ?? '')
