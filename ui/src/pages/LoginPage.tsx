@@ -14,7 +14,7 @@ export default function LoginPage() {
 
     try {
       await login({ email, password })
-      window.location.reload()
+      window.location.href = '/'
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {

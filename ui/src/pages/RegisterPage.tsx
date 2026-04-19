@@ -14,7 +14,7 @@ export default function RegisterPage() {
 
     try {
       await register({ email, password })
-      window.location.reload()
+      window.location.href = '/'
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed')
     } finally {
