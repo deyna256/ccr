@@ -5,6 +5,7 @@ import TaskForm from '../components/TaskForm'
 import { Task, listTasks, updateTask } from '../api/tasks'
 import { Category, listCategories } from '../api/categories'
 
+
 type ViewMode = 'week' | 'month'
 
 function formatPeriod(date: Date, view: ViewMode): string {
@@ -50,7 +51,6 @@ export default function CalendarPage() {
   async function handleTaskMove(taskId: string, newStart: Date) {
     const task = tasks.find(t => t.id === taskId)
     if (!task) return
-
     try {
       await updateTask(taskId, {
         type: task.type,
@@ -59,6 +59,27 @@ export default function CalendarPage() {
         start_time: newStart.toISOString(),
         duration_minutes: task.duration_minutes,
         category_id: task.category_id,
+        color: task.color,
+      })
+      const updated = await listTasks()
+      setTasks(updated)
+    } catch {
+      // task stays in place on error
+    }
+  }
+
+  async function handleTaskResize(taskId: string, newStart: Date, durationMinutes: number) {
+    const task = tasks.find(t => t.id === taskId)
+    if (!task) return
+    try {
+      await updateTask(taskId, {
+        type: task.type,
+        title: task.title,
+        description: task.description,
+        start_time: newStart.toISOString(),
+        duration_minutes: durationMinutes,
+        category_id: task.category_id,
+        color: task.color,
       })
       const updated = await listTasks()
       setTasks(updated)
@@ -155,6 +176,7 @@ export default function CalendarPage() {
           onTaskClick={t => setEditingTask(t)}
           onEmptySlotClick={handleEmptySlotClick}
           onTaskMove={handleTaskMove}
+          onTaskResize={handleTaskResize}
         />
       ) : (
         <MonthView

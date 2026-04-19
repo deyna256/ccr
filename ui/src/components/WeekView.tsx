@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useCallback } from 'react'
+import { useMemo, useRef, useState, useCallback, useEffect } from 'react'
 import { Task } from '../api/tasks'
 import { Category } from '../api/categories'
 
@@ -9,14 +9,26 @@ interface WeekViewProps {
   onTaskClick: (task: Task) => void
   onEmptySlotClick: (date: Date) => void
   onTaskMove?: (taskId: string, newStart: Date) => void
+  onTaskResize?: (taskId: string, newStart: Date, durationMinutes: number) => void
 }
 
 const HOURS = Array.from({ length: 18 }, (_, i) => i + 6) // 06:00–23:00
 const ROW_H = 3 // rem per hour
 
+type ResizeType = 'top' | 'bottom'
+
+interface ResizeState {
+  taskId: string
+  type: ResizeType
+  originalStart: Date
+  originalDuration: number
+  previewStart: Date
+  previewDuration: number
+}
+
 export default function WeekView({
   currentDate, tasks, categories,
-  onTaskClick, onEmptySlotClick, onTaskMove,
+  onTaskClick, onEmptySlotClick, onTaskMove, onTaskResize,
 }: WeekViewProps) {
   const days = useMemo(() => {
     const day = currentDate.getDay()
@@ -45,24 +57,32 @@ export default function WeekView({
     return categories.find(c => c.id === id)?.color ?? '#57535e'
   }, [categories])
 
-  // --- Drag state ---
+  // --- Drag (move) state ---
   const bodyRef = useRef<HTMLDivElement>(null)
   const [dragTaskId, setDragTaskId] = useState<string | null>(null)
   const [dragOffsetMin, setDragOffsetMin] = useState(0)
-  // snapMin = minutes from midnight where task top would land
   const [dropInfo, setDropInfo] = useState<{ dateStr: string; snapMin: number } | null>(null)
+
+  // --- Resize state ---
+  const [resize, setResize] = useState<ResizeState | null>(null)
+  const resizeRef = useRef<ResizeState | null>(null)
 
   function pxPerMin(): number {
     if (!bodyRef.current) return (ROW_H * 16) / 60
     return bodyRef.current.offsetHeight / (HOURS.length * 60)
   }
 
+  function snapToQuarter(min: number): number {
+    return Math.round(min / 15) * 15
+  }
+
   function calcSnapMin(yInColumn: number): number {
     const raw = HOURS[0] * 60 + yInColumn / pxPerMin() - dragOffsetMin
     const clamped = Math.max(HOURS[0] * 60, Math.min(23 * 60, raw))
-    return Math.round(clamped / 15) * 15
+    return snapToQuarter(clamped)
   }
 
+  // Drag-to-move handlers
   function handleDragStart(e: React.DragEvent, task: Task) {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const offsetPx = e.clientY - rect.top
@@ -101,6 +121,77 @@ export default function WeekView({
     setDragTaskId(null)
     setDropInfo(null)
   }
+
+  // Resize handlers (mouse-based)
+  function handleResizeStart(e: React.MouseEvent, task: Task, type: ResizeType) {
+    e.preventDefault()
+    e.stopPropagation()
+    const start = new Date(task.start_time)
+    const duration = task.duration_minutes ?? 60
+    const state: ResizeState = {
+      taskId: task.id,
+      type,
+      originalStart: start,
+      originalDuration: duration,
+      previewStart: start,
+      previewDuration: duration,
+    }
+    resizeRef.current = state
+    setResize(state)
+  }
+
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      if (!resizeRef.current || !bodyRef.current) return
+      const { type, originalStart, originalDuration } = resizeRef.current
+
+      // Find which column (day) we're in — use the body bounding rect for y
+      const bodyRect = bodyRef.current.getBoundingClientRect()
+      const yInBody = e.clientY - bodyRect.top
+      const minutesFromTop = yInBody / pxPerMin()
+      const absoluteMin = HOURS[0] * 60 + minutesFromTop
+
+      if (type === 'bottom') {
+        // Keep start fixed, change duration
+        const endMin = snapToQuarter(Math.max(absoluteMin, HOURS[0] * 60 + 15))
+        const origStartMin = originalStart.getHours() * 60 + originalStart.getMinutes()
+        const newDuration = Math.max(15, endMin - origStartMin)
+        const next = { ...resizeRef.current, previewDuration: newDuration }
+        resizeRef.current = next
+        setResize(next)
+      } else {
+        // Keep end fixed, change start
+        const origEndMin = originalStart.getHours() * 60 + originalStart.getMinutes() + originalDuration
+        const newStartMin = snapToQuarter(Math.min(absoluteMin, origEndMin - 15))
+        const clampedStartMin = Math.max(HOURS[0] * 60, newStartMin)
+        const newDuration = origEndMin - clampedStartMin
+        const newStart = new Date(originalStart)
+        newStart.setHours(Math.floor(clampedStartMin / 60), clampedStartMin % 60, 0, 0)
+        const next = { ...resizeRef.current, previewStart: newStart, previewDuration: newDuration }
+        resizeRef.current = next
+        setResize(next)
+      }
+    }
+
+    function onMouseUp() {
+      if (!resizeRef.current || !onTaskResize) {
+        resizeRef.current = null
+        setResize(null)
+        return
+      }
+      const { taskId, previewStart, previewDuration } = resizeRef.current
+      onTaskResize(taskId, previewStart, previewDuration)
+      resizeRef.current = null
+      setResize(null)
+    }
+
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+    return () => {
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [onTaskResize])
 
   const totalH = HOURS.length * ROW_H
 
@@ -176,22 +267,25 @@ export default function WeekView({
 
                 {/* Tasks */}
                 {dayTasks.map(task => {
-                  const start = new Date(task.start_time)
-                  const top = ((start.getHours() - HOURS[0]) * 60 + start.getMinutes()) / 60 * ROW_H
-                  const height = Math.max((task.duration_minutes ?? 60) / 60 * ROW_H, 0.75)
-                  const color = getCategoryColor(task.category_id)
+                  const isResizing = resize?.taskId === task.id
+                  const displayStart = isResizing ? resize!.previewStart : new Date(task.start_time)
+                  const displayDuration = isResizing ? resize!.previewDuration : (task.duration_minutes ?? 60)
+
+                  const top = ((displayStart.getHours() - HOURS[0]) * 60 + displayStart.getMinutes()) / 60 * ROW_H
+                  const height = Math.max(displayDuration / 60 * ROW_H, 0.75)
+                  const color = task.color ?? getCategoryColor(task.category_id)
                   const isDragging = dragTaskId === task.id
 
                   return (
                     <div
                       key={task.id}
-                      draggable
+                      draggable={!resize}
                       onDragStart={e => handleDragStart(e, task)}
                       onDragEnd={resetDrag}
-                      onClick={() => onTaskClick(task)}
-                      className={`absolute left-0.5 right-0.5 rounded px-1.5 py-1 cursor-grab active:cursor-grabbing overflow-hidden z-10 transition-opacity ${
+                      onClick={() => !resize && onTaskClick(task)}
+                      className={`absolute left-0.5 right-0.5 rounded overflow-hidden z-10 transition-opacity select-none ${
                         isDragging ? 'opacity-30' : 'opacity-100 hover:opacity-80'
-                      }`}
+                      } ${resize ? 'cursor-ns-resize' : 'cursor-grab active:cursor-grabbing'}`}
                       style={{
                         top: `${top}rem`,
                         height: `${height}rem`,
@@ -199,13 +293,27 @@ export default function WeekView({
                         borderLeft: `2px solid ${color}`,
                       }}
                     >
-                      <div className="text-xs text-cream truncate leading-tight select-none">{task.title}</div>
-                      {height >= 1.5 && (
-                        <div className="text-xs text-cream-faint leading-tight select-none">
-                          {start.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
-                          {task.duration_minutes ? ` · ${task.duration_minutes}m` : ''}
-                        </div>
-                      )}
+                      {/* Top resize handle */}
+                      <div
+                        className="absolute top-0 left-0 right-0 h-1.5 cursor-ns-resize z-20"
+                        onMouseDown={e => handleResizeStart(e, task, 'top')}
+                      />
+
+                      <div className="px-1.5 py-1 h-full">
+                        <div className="text-xs text-cream truncate leading-tight">{task.title}</div>
+                        {height >= 1.5 && (
+                          <div className="text-xs text-cream-faint leading-tight">
+                            {displayStart.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                            {displayDuration ? ` · ${displayDuration}m` : ''}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Bottom resize handle */}
+                      <div
+                        className="absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize z-20"
+                        onMouseDown={e => handleResizeStart(e, task, 'bottom')}
+                      />
                     </div>
                   )
                 })}

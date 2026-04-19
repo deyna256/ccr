@@ -37,8 +37,20 @@ export default function TaskForm({ task, categories, initialDate, onClose, onSav
   )
   const [duration, setDuration] = useState(task?.duration_minutes?.toString() ?? '60')
   const [categoryId, setCategoryId] = useState(task?.category_id ?? '')
+  const [color, setColor] = useState(task?.color ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  const COLOR_PALETTE = [
+    '#c4913a', // gold
+    '#4daa74', // jade
+    '#d95b5b', // ember
+    '#5b8dd9', // blue
+    '#8b6dd9', // violet
+    '#d96b8b', // rose
+    '#4daaaa', // teal
+    '#c87d4a', // amber
+  ]
 
   const dateFixed = !task && !!initialDate
 
@@ -54,6 +66,7 @@ export default function TaskForm({ task, categories, initialDate, onClose, onSav
       start_time: new Date(`${date}T${startTime}:00`).toISOString(),
       duration_minutes: parseInt(duration, 10),
       category_id: categoryId || undefined,
+      color: color || undefined,
     }
 
     try {
@@ -219,6 +232,34 @@ export default function TaskForm({ task, categories, initialDate, onClose, onSav
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs text-cream-faint mb-1.5">Color</label>
+            <div className="flex items-center gap-2 flex-wrap">
+              {COLOR_PALETTE.map(c => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setColor(color === c ? '' : c)}
+                  className="w-6 h-6 rounded-full transition-transform hover:scale-110"
+                  style={{
+                    backgroundColor: c,
+                    outline: color === c ? `2px solid ${c}` : '2px solid transparent',
+                    outlineOffset: '2px',
+                  }}
+                />
+              ))}
+              {color && (
+                <button
+                  type="button"
+                  onClick={() => setColor('')}
+                  className="text-xs text-cream-faint hover:text-cream transition-colors"
+                >
+                  Clear
+                </button>
+              )}
             </div>
           </div>
 

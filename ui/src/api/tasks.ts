@@ -12,6 +12,7 @@ export interface Task {
   end_time?: string
   duration_minutes?: number
   category_id?: string
+  color?: string
   status: TaskStatus
   recurrence_id?: string
   recurrence?: RecurrenceRule
@@ -60,6 +61,7 @@ export interface CreateTaskRequest {
   end_time?: string
   duration_minutes?: number
   category_id?: string
+  color?: string
   recurrence?: RecurrenceRule
 }
 
@@ -79,6 +81,7 @@ export interface UpdateTaskRequest {
   end_time?: string
   duration_minutes?: number
   category_id?: string
+  color?: string
   status?: TaskStatus
 }
 
