@@ -179,11 +179,11 @@ func (s *Service) UploadAttachment(ctx context.Context, taskID, userID, name, mi
 		return Attachment{}, fmt.Errorf("task.service.UploadAttachment: create file: %w", err)
 	}
 	if _, err := io.Copy(f, r); err != nil {
-		f.Close()
-		os.Remove(filePath)
+		_ = f.Close()
+		_ = os.Remove(filePath)
 		return Attachment{}, fmt.Errorf("task.service.UploadAttachment: write file: %w", err)
 	}
-	f.Close()
+	_ = f.Close()
 	a, err := s.storage.CreateAttachment(ctx, Attachment{
 		TaskID:   taskID,
 		Name:     name,
@@ -192,7 +192,7 @@ func (s *Service) UploadAttachment(ctx context.Context, taskID, userID, name, mi
 		MimeType: mimeType,
 	})
 	if err != nil {
-		os.Remove(filePath)
+		_ = os.Remove(filePath)
 		return Attachment{}, fmt.Errorf("task.service.UploadAttachment: %w", err)
 	}
 	return a, nil
