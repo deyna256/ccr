@@ -40,7 +40,7 @@ func parseLogs(t *testing.T, buf *bytes.Buffer) []map[string]any {
 
 func TestMiddleware_logsArrival(t *testing.T) {
 	var buf bytes.Buffer
-	h := httplog.Middleware(newTestLogger(&buf))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	h := httplog.Middleware(newTestLogger(&buf))(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
 
 	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/api/chat", nil))
 
@@ -64,7 +64,7 @@ func TestMiddleware_logsArrival(t *testing.T) {
 
 func TestMiddleware_normalRequest(t *testing.T) {
 	var buf bytes.Buffer
-	h := httplog.Middleware(newTestLogger(&buf))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := httplog.Middleware(newTestLogger(&buf))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 	}))
 
@@ -93,7 +93,7 @@ func TestMiddleware_normalRequest(t *testing.T) {
 
 func TestMiddleware_cachedRequest(t *testing.T) {
 	var buf bytes.Buffer
-	h := httplog.Middleware(newTestLogger(&buf))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := httplog.Middleware(newTestLogger(&buf))(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		httplog.MarkCached(r.Context())
 	}))
 
@@ -114,7 +114,7 @@ func TestMiddleware_cachedRequest(t *testing.T) {
 
 func TestMiddleware_defaultStatus200(t *testing.T) {
 	var buf bytes.Buffer
-	h := httplog.Middleware(newTestLogger(&buf))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	h := httplog.Middleware(newTestLogger(&buf))(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
 
 	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
 

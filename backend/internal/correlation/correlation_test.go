@@ -11,7 +11,7 @@ import (
 
 func TestMiddleware_generatesIDWhenAbsent(t *testing.T) {
 	var gotID string
-	h := correlation.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := correlation.Middleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		gotID = correlation.FromContext(r.Context())
 	}))
 
@@ -30,7 +30,7 @@ func TestMiddleware_generatesIDWhenAbsent(t *testing.T) {
 func TestMiddleware_propagatesIncomingID(t *testing.T) {
 	const wantID = "incoming-id-123"
 	var gotID string
-	h := correlation.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := correlation.Middleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		gotID = correlation.FromContext(r.Context())
 	}))
 
@@ -47,7 +47,7 @@ func TestTransport_injectsIDFromContext(t *testing.T) {
 	const wantID = "outgoing-id-456"
 	var gotHeader string
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		gotHeader = r.Header.Get(correlation.Header)
 	}))
 	defer server.Close()
@@ -58,10 +58,11 @@ func TestTransport_injectsIDFromContext(t *testing.T) {
 
 	ctx := correlation.WithContext(context.Background(), wantID)
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, server.URL, nil)
-	_, err := client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
+	resp.Body.Close()
 
 	if gotHeader != wantID {
 		t.Fatalf("server got %q = %q, want %q", correlation.Header, gotHeader, wantID)
@@ -89,7 +90,7 @@ func TestExtractor_withoutID(t *testing.T) {
 func TestTransport_skipsWhenContextEmpty(t *testing.T) {
 	var gotHeader string
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		gotHeader = r.Header.Get(correlation.Header)
 	}))
 	defer server.Close()
@@ -99,10 +100,11 @@ func TestTransport_skipsWhenContextEmpty(t *testing.T) {
 	}
 
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
-	_, err := client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
+	resp.Body.Close()
 
 	if gotHeader != "" {
 		t.Fatalf("expected no header, got %q", gotHeader)

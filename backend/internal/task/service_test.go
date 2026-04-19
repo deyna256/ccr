@@ -14,15 +14,15 @@ import (
 )
 
 type stubStorage struct {
-	list            func(ctx context.Context, userID string, f task.ListFilter) ([]task.Task, error)
-	listRecurring   func(ctx context.Context, userID string) ([]task.Task, error)
-	getByID         func(ctx context.Context, id, userID string) (task.Task, error)
-	create          func(ctx context.Context, t task.Task) (task.Task, error)
-	update          func(ctx context.Context, t task.Task) (task.Task, error)
-	updateStatus    func(ctx context.Context, id, userID, status string, completedAt, archivedAt *time.Time) (task.Task, error)
-	delete          func(ctx context.Context, id, userID string) error
-	listAttachments func(ctx context.Context, taskID, userID string) ([]task.Attachment, error)
-	getAttachment   func(ctx context.Context, attachmentID, userID string) (task.Attachment, error)
+	list             func(ctx context.Context, userID string, f task.ListFilter) ([]task.Task, error)
+	listRecurring    func(ctx context.Context, userID string) ([]task.Task, error)
+	getByID          func(ctx context.Context, id, userID string) (task.Task, error)
+	create           func(ctx context.Context, t task.Task) (task.Task, error)
+	update           func(ctx context.Context, t task.Task) (task.Task, error)
+	updateStatus     func(ctx context.Context, id, userID, status string, completedAt, archivedAt *time.Time) (task.Task, error)
+	delete           func(ctx context.Context, id, userID string) error
+	listAttachments  func(ctx context.Context, taskID, userID string) ([]task.Attachment, error)
+	getAttachment    func(ctx context.Context, attachmentID, userID string) (task.Attachment, error)
 	createAttachment func(ctx context.Context, a task.Attachment) (task.Attachment, error)
 	deleteAttachment func(ctx context.Context, attachmentID, userID string) error
 }
@@ -93,11 +93,11 @@ func TestService_List_withDateFilter(t *testing.T) {
 	listRecurringCalled := false
 
 	store := &stubStorage{
-		list: func(ctx context.Context, userID string, f task.ListFilter) ([]task.Task, error) {
+		list: func(_ context.Context, _ string, _ task.ListFilter) ([]task.Task, error) {
 			listCalled = true
 			return []task.Task{}, nil
 		},
-		listRecurring: func(ctx context.Context, userID string) ([]task.Task, error) {
+		listRecurring: func(_ context.Context, _ string) ([]task.Task, error) {
 			listRecurringCalled = true
 			return []task.Task{recurringTask}, nil
 		},
@@ -117,7 +117,6 @@ func TestService_List_withDateFilter(t *testing.T) {
 	if !listRecurringCalled {
 		t.Error("expected ListRecurring to be called")
 	}
-	// 3 occurrences (Jan 1, 2, 3)
 	if len(result) != 3 {
 		t.Errorf("expected 3 results, got %d", len(result))
 	}
@@ -127,10 +126,10 @@ func TestService_List_noFilter(t *testing.T) {
 	listRecurringCalled := false
 
 	store := &stubStorage{
-		list: func(ctx context.Context, userID string, f task.ListFilter) ([]task.Task, error) {
+		list: func(_ context.Context, _ string, _ task.ListFilter) ([]task.Task, error) {
 			return []task.Task{}, nil
 		},
-		listRecurring: func(ctx context.Context, userID string) ([]task.Task, error) {
+		listRecurring: func(_ context.Context, _ string) ([]task.Task, error) {
 			listRecurringCalled = true
 			return nil, nil
 		},
@@ -157,10 +156,10 @@ func TestService_UpdateStatus_done(t *testing.T) {
 
 	var gotCompletedAt *time.Time
 	store := &stubStorage{
-		getByID: func(ctx context.Context, id, userID string) (task.Task, error) {
+		getByID: func(_ context.Context, _, _ string) (task.Task, error) {
 			return regularTask, nil
 		},
-		updateStatus: func(ctx context.Context, id, userID, status string, completedAt, archivedAt *time.Time) (task.Task, error) {
+		updateStatus: func(_ context.Context, _, _, status string, completedAt, _ *time.Time) (task.Task, error) {
 			gotCompletedAt = completedAt
 			updated := regularTask
 			updated.Status = status
@@ -191,7 +190,7 @@ func TestService_UpdateStatus_eventType_doneStatus(t *testing.T) {
 	}
 
 	store := &stubStorage{
-		getByID: func(ctx context.Context, id, userID string) (task.Task, error) {
+		getByID: func(_ context.Context, _, _ string) (task.Task, error) {
 			return eventTask, nil
 		},
 	}
@@ -225,10 +224,10 @@ func TestService_UploadAttachment_writesFile(t *testing.T) {
 	content := "hello attachment content"
 
 	store := &stubStorage{
-		getByID: func(ctx context.Context, id, userID string) (task.Task, error) {
+		getByID: func(_ context.Context, id, userID string) (task.Task, error) {
 			return task.Task{ID: id, UserID: userID, Type: "task", Status: "pending"}, nil
 		},
-		createAttachment: func(ctx context.Context, a task.Attachment) (task.Attachment, error) {
+		createAttachment: func(_ context.Context, a task.Attachment) (task.Attachment, error) {
 			a.ID = "att1"
 			return a, nil
 		},

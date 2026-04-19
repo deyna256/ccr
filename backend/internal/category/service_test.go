@@ -9,11 +9,11 @@ import (
 )
 
 type stubStorage struct {
-	list     func(ctx context.Context, userID string) ([]category.Category, error)
-	create   func(ctx context.Context, userID, name, color string) (category.Category, error)
-	getByID  func(ctx context.Context, id, userID string) (category.Category, error)
-	update   func(ctx context.Context, id, userID, name, color string) (category.Category, error)
-	delete   func(ctx context.Context, id, userID string) error
+	list    func(ctx context.Context, userID string) ([]category.Category, error)
+	create  func(ctx context.Context, userID, name, color string) (category.Category, error)
+	getByID func(ctx context.Context, id, userID string) (category.Category, error)
+	update  func(ctx context.Context, id, userID, name, color string) (category.Category, error)
+	delete  func(ctx context.Context, id, userID string) error
 }
 
 func (s *stubStorage) List(ctx context.Context, userID string) ([]category.Category, error) {

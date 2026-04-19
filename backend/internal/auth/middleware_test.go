@@ -27,7 +27,7 @@ func issueTestToken(t *testing.T, secret string) string {
 }
 
 func TestMiddleware_missingHeader(t *testing.T) {
-	h := auth.Middleware("secret")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := auth.Middleware("secret")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	rr := httptest.NewRecorder()
@@ -38,7 +38,7 @@ func TestMiddleware_missingHeader(t *testing.T) {
 }
 
 func TestMiddleware_malformedBearer(t *testing.T) {
-	h := auth.Middleware("secret")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := auth.Middleware("secret")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -74,7 +74,7 @@ func TestMiddleware_validToken(t *testing.T) {
 }
 
 func TestMiddleware_invalidToken(t *testing.T) {
-	h := auth.Middleware("secret")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := auth.Middleware("secret")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
