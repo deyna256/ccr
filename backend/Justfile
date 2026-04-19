@@ -1,0 +1,24 @@
+set dotenv-load := true
+
+# Run tests
+test:
+    go test -v -race ./...
+
+# Lint
+style:
+    golangci-lint run ./...
+
+# Format
+fmt:
+    gofmt -w .
+    goimports -w .
+
+# Tidy dependencies
+tidy:
+    go mod tidy
+
+# Build and push image to GHCR (org=your-org version=v1.0.0 just publish)
+publish:
+    docker build -t ghcr.io/{{org}}/backend:{{version}} -t ghcr.io/{{org}}/backend:latest .
+    docker push ghcr.io/{{org}}/backend:{{version}}
+    docker push ghcr.io/{{org}}/backend:latest
