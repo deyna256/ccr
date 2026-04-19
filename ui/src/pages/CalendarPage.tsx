@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import WeekView from '../components/WeekView'
 import MonthView from '../components/MonthView'
 import TaskForm from '../components/TaskForm'
-import { Task, listTasks } from '../api/tasks'
+import { Task, listTasks, updateTask } from '../api/tasks'
 import { Category, listCategories } from '../api/categories'
 
 type ViewMode = 'week' | 'month'
@@ -45,6 +45,30 @@ export default function CalendarPage() {
     setCategories(c)
     setEditingTask(null)
     setNewTaskDate(null)
+  }
+
+  async function handleTaskMove(taskId: string, newStart: Date) {
+    const task = tasks.find(t => t.id === taskId)
+    if (!task) return
+
+    const newStartISO = newStart.toISOString()
+
+    // optimistic update
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, start_time: newStartISO } : t))
+
+    try {
+      await updateTask(taskId, {
+        type: task.type,
+        title: task.title,
+        description: task.description,
+        start_time: newStartISO,
+        duration_minutes: task.duration_minutes,
+        category_id: task.category_id,
+      })
+    } catch {
+      // rollback
+      setTasks(prev => prev.map(t => t.id === taskId ? task : t))
+    }
   }
 
   function handleEmptySlotClick(date: Date) {
@@ -134,6 +158,7 @@ export default function CalendarPage() {
           categories={categories}
           onTaskClick={t => setEditingTask(t)}
           onEmptySlotClick={handleEmptySlotClick}
+          onTaskMove={handleTaskMove}
         />
       ) : (
         <MonthView
