@@ -72,6 +72,9 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		}
 		f.To = &t
 	}
+	if statusStr := r.URL.Query().Get("status"); statusStr != "" {
+		f.Status = &statusStr
+	}
 	tasks, err := h.service.List(r.Context(), userID, f)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "list tasks failed", slog.String("error", err.Error()))

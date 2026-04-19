@@ -76,6 +76,7 @@ func (s *Service) Create(ctx context.Context, userID string, req WriteRequest) (
 		StartTime:      req.StartTime,
 		EndTime:        endTime,
 		Status:         "pending",
+		Color:          req.Color,
 		IsRecurring:    req.IsRecurring,
 		RecurrenceRule: req.RecurrenceRule,
 	}
@@ -104,6 +105,7 @@ func (s *Service) Update(ctx context.Context, id, userID string, req WriteReques
 		Description:    req.Description,
 		StartTime:      req.StartTime,
 		EndTime:        endTime,
+		Color:          req.Color,
 		IsRecurring:    req.IsRecurring,
 		RecurrenceRule: req.RecurrenceRule,
 	}

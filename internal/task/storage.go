@@ -39,6 +39,7 @@ func scanTask(row interface {
 	var description sql.NullString
 	var startTime sql.NullTime
 	var endTime sql.NullTime
+	var color sql.NullString
 	var completedAt sql.NullTime
 	var archivedAt sql.NullTime
 	var recurrenceRule sql.NullString
@@ -53,6 +54,7 @@ func scanTask(row interface {
 		&startTime,
 		&endTime,
 		&t.Status,
+		&color,
 		&completedAt,
 		&archivedAt,
 		&t.IsRecurring,
@@ -76,6 +78,9 @@ func scanTask(row interface {
 	if endTime.Valid {
 		t.EndTime = &endTime.Time
 	}
+	if color.Valid {
+		t.Color = &color.String
+	}
 	if completedAt.Valid {
 		t.CompletedAt = &completedAt.Time
 	}
@@ -94,23 +99,31 @@ func scanTask(row interface {
 }
 
 const taskColumns = `id, user_id, category_id, type, title, description, start_time, end_time,
-	status, completed_at, archived_at, is_recurring, recurrence_rule, created_at, updated_at`
+	status, color, completed_at, archived_at, is_recurring, recurrence_rule, created_at, updated_at`
 
 func (s *PostgresStorage) List(ctx context.Context, userID string, f ListFilter) ([]Task, error) {
 	var rows *sql.Rows
 	var err error
 
-	if f.From != nil && f.To != nil {
+	switch {
+	case f.Status != nil:
 		rows, err = s.db.QueryContext(ctx,
 			`SELECT `+taskColumns+` FROM tasks
-			 WHERE user_id=$1 AND is_recurring=false AND start_time >= $2 AND start_time <= $3
+			 WHERE user_id=$1 AND is_recurring=false AND status=$2
+			 ORDER BY updated_at DESC`,
+			userID, *f.Status,
+		)
+	case f.From != nil && f.To != nil:
+		rows, err = s.db.QueryContext(ctx,
+			`SELECT `+taskColumns+` FROM tasks
+			 WHERE user_id=$1 AND is_recurring=false AND status='pending' AND start_time >= $2 AND start_time <= $3
 			 ORDER BY start_time`,
 			userID, f.From, f.To,
 		)
-	} else {
+	default:
 		rows, err = s.db.QueryContext(ctx,
 			`SELECT `+taskColumns+` FROM tasks
-			 WHERE user_id=$1 AND is_recurring=false
+			 WHERE user_id=$1 AND is_recurring=false AND status='pending'
 			 ORDER BY created_at`,
 			userID,
 		)
@@ -178,11 +191,11 @@ func (s *PostgresStorage) GetByID(ctx context.Context, id, userID string) (Task,
 func (s *PostgresStorage) Create(ctx context.Context, t Task) (Task, error) {
 	row := s.db.QueryRowContext(ctx,
 		`INSERT INTO tasks (user_id, category_id, type, title, description, start_time, end_time,
-		  status, completed_at, archived_at, is_recurring, recurrence_rule)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		  status, color, completed_at, archived_at, is_recurring, recurrence_rule)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 		 RETURNING `+taskColumns,
 		t.UserID, t.CategoryID, t.Type, t.Title, t.Description, t.StartTime, t.EndTime,
-		t.Status, t.CompletedAt, t.ArchivedAt, t.IsRecurring, t.RecurrenceRule,
+		t.Status, t.Color, t.CompletedAt, t.ArchivedAt, t.IsRecurring, t.RecurrenceRule,
 	)
 	created, err := scanTask(row)
 	if err != nil {
@@ -195,11 +208,11 @@ func (s *PostgresStorage) Update(ctx context.Context, t Task) (Task, error) {
 	row := s.db.QueryRowContext(ctx,
 		`UPDATE tasks SET
 		  category_id=$1, type=$2, title=$3, description=$4, start_time=$5, end_time=$6,
-		  is_recurring=$7, recurrence_rule=$8, updated_at=NOW()
-		 WHERE id=$9 AND user_id=$10
+		  color=$7, is_recurring=$8, recurrence_rule=$9, updated_at=NOW()
+		 WHERE id=$10 AND user_id=$11
 		 RETURNING `+taskColumns,
 		t.CategoryID, t.Type, t.Title, t.Description, t.StartTime, t.EndTime,
-		t.IsRecurring, t.RecurrenceRule, t.ID, t.UserID,
+		t.Color, t.IsRecurring, t.RecurrenceRule, t.ID, t.UserID,
 	)
 	updated, err := scanTask(row)
 	if errors.Is(err, sql.ErrNoRows) {

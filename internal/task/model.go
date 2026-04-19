@@ -16,6 +16,7 @@ type Task struct {
 	EndTime         *time.Time `json:"end_time,omitempty"`
 	DurationMinutes *int       `json:"duration_minutes,omitempty"`
 	Status          string     `json:"status"`
+	Color           *string    `json:"color,omitempty"`
 	CompletedAt     *time.Time `json:"-"`
 	ArchivedAt      *time.Time `json:"-"`
 	IsRecurring     bool       `json:"-"`
@@ -43,8 +44,9 @@ type RecurrenceRule struct {
 }
 
 type ListFilter struct {
-	From *time.Time
-	To   *time.Time
+	From   *time.Time
+	To     *time.Time
+	Status *string
 }
 
 type WriteRequest struct {
@@ -55,9 +57,12 @@ type WriteRequest struct {
 	StartTime       *time.Time `json:"start_time"`
 	EndTime         *time.Time `json:"end_time"`
 	DurationMinutes *int       `json:"duration_minutes"`
+	Color           *string    `json:"color"`
 	IsRecurring     bool       `json:"is_recurring"`
 	RecurrenceRule  *string    `json:"recurrence_rule"`
 }
+
+
 
 type StatusRequest struct {
 	Status string `json:"status"`
