@@ -79,49 +79,43 @@ export default function TaskForm({ task, categories, onClose, onSaved }: TaskFor
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-lg w-full max-w-md">
-        <div className="flex items-center justify-between p-4 border-b border-zinc-800">
-          <h2 className="text-lg font-semibold text-white">
+    <div className="modal-backdrop">
+      <div className="modal-panel max-w-md">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-ink-border">
+          <h2 className="text-base font-semibold text-cream">
             {task ? 'Edit Task' : 'New Task'}
           </h2>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white">
-            &times;
+          <button onClick={onClose} className="text-cream-faint hover:text-cream transition-colors text-lg leading-none">
+            ×
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {error && (
-            <p className="text-sm text-red-400 bg-red-900/20 p-2 rounded">{error}</p>
+            <div className="text-xs text-ember border border-ember/20 bg-ember/5 px-4 py-3 rounded">
+              {error}
+            </div>
           )}
 
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setType('task')}
-              className={`flex-1 py-2 rounded-md text-sm transition-colors ${
-                type === 'task'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-zinc-800 text-zinc-400 hover:text-white'
-              }`}
-            >
-              Task
-            </button>
-            <button
-              type="button"
-              onClick={() => setType('event')}
-              className={`flex-1 py-2 rounded-md text-sm transition-colors ${
-                type === 'event'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-zinc-800 text-zinc-400 hover:text-white'
-              }`}
-            >
-              Event
-            </button>
+          <div className="flex gap-1.5">
+            {(['task', 'event'] as TaskType[]).map(t => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setType(t)}
+                className={`flex-1 py-2 rounded text-sm font-medium transition-colors capitalize ${
+                  type === t
+                    ? 'bg-gold text-ink'
+                    : 'bg-ink-raised text-cream-dim hover:text-cream'
+                }`}
+              >
+                {t}
+              </button>
+            ))}
           </div>
 
           <div>
-            <label className="block text-sm text-zinc-400 mb-1">Title</label>
+            <label className="block text-xs text-cream-faint mb-1.5">Title</label>
             <input
               type="text"
               value={title}
@@ -132,7 +126,7 @@ export default function TaskForm({ task, categories, onClose, onSaved }: TaskFor
           </div>
 
           <div>
-            <label className="block text-sm text-zinc-400 mb-1">Description</label>
+            <label className="block text-xs text-cream-faint mb-1.5">Description</label>
             <textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
@@ -141,9 +135,9 @@ export default function TaskForm({ task, categories, onClose, onSaved }: TaskFor
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm text-zinc-400 mb-1">Date</label>
+              <label className="block text-xs text-cream-faint mb-1.5">Date</label>
               <input
                 type="date"
                 value={date}
@@ -153,7 +147,7 @@ export default function TaskForm({ task, categories, onClose, onSaved }: TaskFor
               />
             </div>
             <div>
-              <label className="block text-sm text-zinc-400 mb-1">Start Time</label>
+              <label className="block text-xs text-cream-faint mb-1.5">Start Time</label>
               <input
                 type="time"
                 value={startTime}
@@ -164,11 +158,9 @@ export default function TaskForm({ task, categories, onClose, onSaved }: TaskFor
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm text-zinc-400 mb-1">
-                Duration (minutes)
-              </label>
+              <label className="block text-xs text-cream-faint mb-1.5">Duration (min)</label>
               <input
                 type="number"
                 value={duration}
@@ -179,7 +171,7 @@ export default function TaskForm({ task, categories, onClose, onSaved }: TaskFor
               />
             </div>
             <div>
-              <label className="block text-sm text-zinc-400 mb-1">Category</label>
+              <label className="block text-xs text-cream-faint mb-1.5">Category</label>
               <select
                 value={categoryId}
                 onChange={e => setCategoryId(e.target.value)}
@@ -187,21 +179,15 @@ export default function TaskForm({ task, categories, onClose, onSaved }: TaskFor
               >
                 <option value="">None</option>
                 {categories.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
             </div>
           </div>
 
-          <div className="flex gap-2 pt-2">
-            <button
-              type="submit"
-              disabled={saving}
-              className="btn-primary flex-1"
-            >
-              {saving ? 'Saving...' : 'Save'}
+          <div className="flex gap-2 pt-1">
+            <button type="submit" disabled={saving} className="btn-primary flex-1">
+              {saving ? 'Saving…' : 'Save'}
             </button>
             {task && (
               <button
@@ -216,7 +202,7 @@ export default function TaskForm({ task, categories, onClose, onSaved }: TaskFor
           </div>
 
           {task && (
-            <div className="flex gap-2 pt-2 border-t border-zinc-800">
+            <div className="flex gap-2 pt-2 border-t border-ink-border">
               <button
                 type="button"
                 onClick={() => handleStatusChange('archived')}

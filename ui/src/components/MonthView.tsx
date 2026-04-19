@@ -42,15 +42,15 @@ export default function MonthView({
   }, [tasks])
 
   const getCategoryColor = (id?: string) => {
-    if (!id) return '#666'
-    return categories.find(c => c.id === id)?.color ?? '#666'
+    if (!id) return '#57535e'
+    return categories.find(c => c.id === id)?.color ?? '#57535e'
   }
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="grid grid-cols-7 gap-px bg-zinc-800">
+      <div className="grid grid-cols-7 gap-px bg-ink-border">
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-          <div key={day} className="bg-zinc-900 p-2 text-center text-xs text-zinc-500">
+          <div key={day} className="bg-ink p-2 text-center text-xs text-cream-faint uppercase tracking-wider">
             {day}
           </div>
         ))}
@@ -58,29 +58,22 @@ export default function MonthView({
           const dateStr = day.toISOString().split('T')[0]
           const dayTasks = tasksByDay.get(dateStr) ?? []
           const isCurrentMonth = day.getMonth() === month
-          const isToday =
-            isCurrentMonth &&
-            day.toDateString() === today.toDateString()
+          const isToday = isCurrentMonth && day.toDateString() === today.toDateString()
 
           return (
             <div
               key={dateStr}
-              className={`bg-zinc-900 min-h-[100px] p-1 ${
-                isCurrentMonth ? '' : 'opacity-30'
-              }`}
+              className={`bg-ink-surface min-h-[100px] p-1.5 ${isCurrentMonth ? '' : 'opacity-25'}`}
             >
-              <button
-                onClick={() => onEmptySlotClick(day)}
-                className="w-full text-left"
-              >
-                <div
-                  className={`text-sm mb-1 ${
-                    isToday
-                      ? 'w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center'
-                      : 'text-zinc-400'
-                  }`}
-                >
-                  {day.getDate()}
+              <button onClick={() => onEmptySlotClick(day)} className="w-full text-left">
+                <div className="mb-1">
+                  {isToday ? (
+                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gold text-ink text-xs font-semibold">
+                      {day.getDate()}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-cream-dim">{day.getDate()}</span>
+                  )}
                 </div>
                 <div className="space-y-0.5">
                   {dayTasks.slice(0, 3).map(task => (
@@ -90,16 +83,14 @@ export default function MonthView({
                         e.stopPropagation()
                         onTaskClick(task)
                       }}
-                      className="w-full text-left truncate text-xs px-1 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700"
-                      style={{
-                        borderLeft: `2px solid ${getCategoryColor(task.category_id)}`,
-                      }}
+                      className="w-full text-left truncate text-xs px-1 py-0.5 rounded bg-ink-raised hover:bg-ink-subtle transition-colors"
+                      style={{ borderLeft: `2px solid ${getCategoryColor(task.category_id)}` }}
                     >
-                      {task.title}
+                      <span className="text-cream-dim">{task.title}</span>
                     </button>
                   ))}
                   {dayTasks.length > 3 && (
-                    <div className="text-xs text-zinc-500 px-1">
+                    <div className="text-xs text-cream-faint px-1">
                       +{dayTasks.length - 3} more
                     </div>
                   )}

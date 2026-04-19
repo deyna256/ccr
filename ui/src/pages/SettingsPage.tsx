@@ -8,14 +8,14 @@ import {
 } from '../api/categories'
 
 const COLORS = [
-  '#ef4444', // red
-  '#f97316', // orange
-  '#eab308', // yellow
-  '#22c55e', // green
-  '#06b6d4', // cyan
-  '#3b82f6', // blue
-  '#8b5cf6', // violet
-  '#ec4899', // pink
+  '#ef4444',
+  '#f97316',
+  '#eab308',
+  '#22c55e',
+  '#06b6d4',
+  '#3b82f6',
+  '#8b5cf6',
+  '#ec4899',
 ]
 
 export default function SettingsPage() {
@@ -81,39 +81,40 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-zinc-500">Loading...</p>
+        <p className="text-cream-faint text-sm">Loading…</p>
       </div>
     )
   }
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold text-white">Categories</h1>
-        <button onClick={() => setShowNew(true)} className="btn-primary">
+    <div className="p-6 max-w-2xl mx-auto page-enter">
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h1 className="text-xl font-semibold text-cream">Categories</h1>
+          <p className="text-xs text-cream-faint mt-0.5">{categories.length} total</p>
+        </div>
+        <button onClick={() => setShowNew(true)} className="btn-primary py-1.5">
           + New
         </button>
       </div>
 
       {error && (
-        <p className="text-sm text-red-400 bg-red-900/20 p-2 rounded mb-4">
+        <div className="mb-4 text-xs text-ember border border-ember/20 bg-ember/5 px-4 py-3 rounded">
           {error}
-        </p>
+        </div>
       )}
 
       {/* New category form */}
       {showNew && (
-        <div className="card p-4 mb-4">
-          <div className="flex items-center gap-4">
-            <div className="flex gap-2">
+        <div className="card p-4 mb-4 animate-slide-up">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex gap-1.5">
               {COLORS.map(c => (
                 <button
                   key={c}
                   onClick={() => setNewColor(c)}
-                  className={`w-8 h-8 rounded-full ${
-                    newColor === c
-                      ? 'ring-2 ring-white ring-offset-2 ring-offset-zinc-900'
-                      : ''
+                  className={`w-6 h-6 rounded-full transition-transform ${
+                    newColor === c ? 'ring-2 ring-gold ring-offset-2 ring-offset-ink-surface scale-110' : ''
                   }`}
                   style={{ backgroundColor: c }}
                 />
@@ -124,14 +125,10 @@ export default function SettingsPage() {
               value={newName}
               onChange={e => setNewName(e.target.value)}
               placeholder="Category name"
-              className="input-field flex-1"
+              className="input-field flex-1 min-w-[140px]"
             />
-            <button onClick={handleCreate} className="btn-primary">
-              Add
-            </button>
-            <button onClick={() => setShowNew(false)} className="btn-ghost">
-              Cancel
-            </button>
+            <button onClick={handleCreate} className="btn-primary py-1.5">Add</button>
+            <button onClick={() => setShowNew(false)} className="btn-ghost py-1.5">Cancel</button>
           </div>
         </div>
       )}
@@ -139,18 +136,16 @@ export default function SettingsPage() {
       {/* Category list */}
       <div className="space-y-2">
         {categories.map(cat => (
-          <div key={cat.id} className="card p-3 flex items-center gap-4">
+          <div key={cat.id} className="card p-3 flex items-center gap-3">
             {editingId === cat.id ? (
               <>
-                <div className="flex gap-2">
+                <div className="flex gap-1.5">
                   {COLORS.map(c => (
                     <button
                       key={c}
                       onClick={() => setEditColor(c)}
-                      className={`w-6 h-6 rounded-full ${
-                        editColor === c
-                          ? 'ring-2 ring-white ring-offset-2 ring-offset-zinc-900'
-                          : ''
+                      className={`w-5 h-5 rounded-full transition-transform ${
+                        editColor === c ? 'ring-2 ring-gold ring-offset-2 ring-offset-ink-surface scale-110' : ''
                       }`}
                       style={{ backgroundColor: c }}
                     />
@@ -162,40 +157,24 @@ export default function SettingsPage() {
                   onChange={e => setEditName(e.target.value)}
                   className="input-field flex-1"
                 />
-                <button
-                  onClick={() => handleUpdate(cat.id)}
-                  className="btn-primary"
-                >
-                  Save
-                </button>
-                <button
-                  onClick={() => setEditingId(null)}
-                  className="btn-ghost"
-                >
-                  Cancel
-                </button>
+                <button onClick={() => handleUpdate(cat.id)} className="btn-primary py-1.5">Save</button>
+                <button onClick={() => setEditingId(null)} className="btn-ghost py-1.5">Cancel</button>
               </>
             ) : (
               <>
-                <div
-                  className="w-4 h-4 rounded-full"
-                  style={{ backgroundColor: cat.color }}
-                />
-                <span className="text-white flex-1">{cat.name}</span>
+                <div className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                <span className="text-cream text-sm flex-1">{cat.name}</span>
                 <button
                   onClick={() => {
                     setEditingId(cat.id)
                     setEditName(cat.name)
                     setEditColor(cat.color)
                   }}
-                  className="text-sm text-zinc-500 hover:text-white"
+                  className="text-xs text-cream-faint hover:text-cream transition-colors"
                 >
                   Edit
                 </button>
-                <button
-                  onClick={() => handleDelete(cat.id)}
-                  className="btn-danger"
-                >
+                <button onClick={() => handleDelete(cat.id)} className="btn-danger">
                   Delete
                 </button>
               </>
@@ -205,9 +184,15 @@ export default function SettingsPage() {
       </div>
 
       {categories.length === 0 && !showNew && (
-        <p className="text-center text-zinc-500 py-8">
-          No categories yet. Create one to get started.
-        </p>
+        <div className="card px-5 py-12 text-center">
+          <p className="text-cream-faint text-sm">No categories yet.</p>
+          <button
+            onClick={() => setShowNew(true)}
+            className="mt-3 text-sm text-gold hover:text-gold-light transition-colors"
+          >
+            Create your first category →
+          </button>
+        </div>
       )}
     </div>
   )

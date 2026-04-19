@@ -40,31 +40,36 @@ export default function WeekView({
   }, [tasks])
 
   const getCategoryColor = (id?: string) => {
-    if (!id) return '#666'
-    return categories.find(c => c.id === id)?.color ?? '#666'
+    if (!id) return '#57535e'
+    return categories.find(c => c.id === id)?.color ?? '#57535e'
   }
 
   return (
     <div className="flex-1 overflow-auto">
       <div className="grid grid-cols-8 min-w-[600px]">
         {/* Header row */}
-        <div className="sticky top-0 bg-zinc-950 z-10" />
-        {days.map(day => (
-          <div
-            key={day.toISOString()}
-            className="sticky top-0 bg-zinc-950 border-b border-zinc-800 p-2 text-center z-10"
-          >
-            <div className="text-xs text-zinc-500 uppercase">
-              {day.toLocaleDateString('en-US', { weekday: 'short' })}
+        <div className="sticky top-0 bg-ink z-10" />
+        {days.map(day => {
+          const isToday = day.toDateString() === new Date().toDateString()
+          return (
+            <div
+              key={day.toISOString()}
+              className="sticky top-0 bg-ink border-b border-ink-border p-2 text-center z-10"
+            >
+              <div className="text-xs text-cream-faint uppercase tracking-wider">
+                {day.toLocaleDateString('en-US', { weekday: 'short' })}
+              </div>
+              <div className={`text-lg font-medium mt-0.5 ${isToday ? 'text-gold' : 'text-cream'}`}>
+                {day.getDate()}
+              </div>
             </div>
-            <div className="text-lg font-medium text-white">{day.getDate()}</div>
-          </div>
-        ))}
+          )
+        })}
 
         {/* Time column */}
         {HOURS.map(hour => (
           <div key={hour} className="relative">
-            <div className="absolute top-0 left-0 w-full text-xs text-zinc-600 font-mono pl-1">
+            <div className="absolute top-0 left-0 w-full text-xs text-cream-faint font-mono pl-1">
               {hour.toString().padStart(2, '0')}:00
             </div>
           </div>
@@ -76,13 +81,14 @@ export default function WeekView({
           const dayTasks = tasksByDay.get(dateStr) ?? []
 
           return (
-            <div key={dateStr} className="relative min-h-[500px] border-l border-zinc-800">
+            <div key={dateStr} className="relative min-h-[500px] border-l border-ink-border">
               {dayTasks.map(task => {
                 const start = new Date(task.start_time)
                 const hour = start.getHours()
                 const minute = start.getMinutes()
                 const top = ((hour - 7) * 60 + minute) / 60 * 3 + 'rem'
                 const height = ((task.duration_minutes ?? 60) / 60) * 3 + 'rem'
+                const color = getCategoryColor(task.category_id)
 
                 return (
                   <button
@@ -92,16 +98,15 @@ export default function WeekView({
                     style={{
                       top,
                       height,
-                      backgroundColor: getCategoryColor(task.category_id) + '40',
-                      borderLeft: `3px solid ${getCategoryColor(task.category_id)}`,
+                      backgroundColor: color + '28',
+                      borderLeft: `2px solid ${color}`,
                     }}
                   >
-                    <div className="text-xs text-white truncate">{task.title}</div>
+                    <div className="text-xs text-cream truncate">{task.title}</div>
                   </button>
                 )
               })}
 
-              {/* Empty slot click handler */}
               <button
                 onClick={() => onEmptySlotClick(day)}
                 className="absolute inset-0 w-full"

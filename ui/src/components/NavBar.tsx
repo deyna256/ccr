@@ -7,32 +7,40 @@ interface NavBarProps {
   onTabChange: (tab: Tab) => void
 }
 
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'calendar', label: 'Calendar' },
+  { id: 'settings', label: 'Settings' },
+]
+
 export default function NavBar({ activeTab, onTabChange }: NavBarProps) {
   return (
-    <nav className="h-12 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4">
-      <div className="flex items-center gap-6">
-        <span className="text-base font-semibold text-white">CCR</span>
-        <div className="flex gap-4">
+    <header className="bg-ink border-b border-ink-border px-5 h-13 flex items-center gap-6 relative z-40">
+      <span className="font-serif text-[17px] font-semibold text-cream tracking-tight select-none">
+        CCR
+      </span>
+      <nav className="flex items-center gap-0.5">
+        {TABS.map(tab => (
           <button
-            onClick={() => onTabChange('calendar')}
-            className={activeTab === 'calendar' ? 'nav-link-active' : 'nav-link'}
+            key={tab.id}
+            onClick={() => onTabChange(tab.id)}
+            className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
+              activeTab === tab.id
+                ? 'text-gold bg-gold-glow'
+                : 'text-cream-dim hover:text-cream hover:bg-ink-raised'
+            }`}
           >
-            Calendar
+            {tab.label}
           </button>
-          <button
-            onClick={() => onTabChange('settings')}
-            className={activeTab === 'settings' ? 'nav-link-active' : 'nav-link'}
-          >
-            Settings
-          </button>
-        </div>
+        ))}
+      </nav>
+      <div className="ml-auto">
+        <button
+          onClick={logout}
+          className="text-sm text-cream-faint hover:text-cream transition-colors"
+        >
+          Logout
+        </button>
       </div>
-      <button
-        onClick={logout}
-        className="text-sm text-zinc-500 hover:text-white transition-colors"
-      >
-        Logout
-      </button>
-    </nav>
+    </header>
   )
 }

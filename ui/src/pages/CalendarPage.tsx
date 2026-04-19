@@ -42,7 +42,7 @@ export default function CalendarPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-zinc-500">Loading...</p>
+        <p className="text-cream-faint text-sm">Loading…</p>
       </div>
     )
   }
@@ -50,38 +50,31 @@ export default function CalendarPage() {
   if (error) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-red-400">{error}</p>
+        <p className="text-ember text-sm">{error}</p>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3rem)]">
+    <div className="flex flex-col h-[calc(100vh-3.25rem)] page-enter">
       {/* Toolbar */}
-      <div className="flex items-center justify-between p-4 border-b border-zinc-800">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setView('week')}
-            className={`px-3 py-1.5 rounded text-sm ${
-              view === 'week'
-                ? 'bg-zinc-700 text-white'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            Week
-          </button>
-          <button
-            onClick={() => setView('month')}
-            className={`px-3 py-1.5 rounded text-sm ${
-              view === 'month'
-                ? 'bg-zinc-700 text-white'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            Month
-          </button>
+      <div className="flex items-center justify-between px-5 py-3 border-b border-ink-border">
+        <div className="flex items-center gap-0.5">
+          {(['week', 'month'] as ViewMode[]).map(v => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={`px-3 py-1.5 text-sm font-medium rounded transition-colors capitalize ${
+                view === v
+                  ? 'text-gold bg-gold-glow'
+                  : 'text-cream-dim hover:text-cream hover:bg-ink-raised'
+              }`}
+            >
+              {v}
+            </button>
+          ))}
         </div>
-        <button onClick={() => setShowNewTask(true)} className="btn-primary">
+        <button onClick={() => setShowNewTask(true)} className="btn-primary py-1.5">
           + New Task
         </button>
       </div>
@@ -103,7 +96,6 @@ export default function CalendarPage() {
         />
       )}
 
-      {/* Modals */}
       {(showNewTask || editingTask) && (
         <TaskForm
           task={editingTask ?? undefined}
