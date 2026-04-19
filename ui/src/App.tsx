@@ -28,19 +28,17 @@ export default function App() {
   if (loading) {
     return (
       <div className="min-h-screen bg-ink flex items-center justify-center">
-        <p className="text-zinc-500">Loading...</p>
+        <p className="text-cream-faint">Loading…</p>
       </div>
     )
   }
 
-  // No token at all - show login
-  if (!token) {
-    return <LoginPage />
-  }
-
-  // Show register only if explicitly navigating there
   if (window.location.pathname === '/register') {
     return <RegisterPage />
+  }
+
+  if (!token) {
+    return <LoginPage />
   }
 
   // Main app
