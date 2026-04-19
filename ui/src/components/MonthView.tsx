@@ -3,21 +3,17 @@ import { Task } from '../api/tasks'
 import { Category } from '../api/categories'
 
 interface MonthViewProps {
+  currentDate: Date
   tasks: Task[]
   categories: Category[]
   onTaskClick: (task: Task) => void
   onEmptySlotClick: (date: Date) => void
 }
 
-export default function MonthView({
-  tasks,
-  categories,
-  onTaskClick,
-  onEmptySlotClick,
-}: MonthViewProps) {
+export default function MonthView({ currentDate, tasks, categories, onTaskClick, onEmptySlotClick }: MonthViewProps) {
   const today = new Date()
-  const year = today.getFullYear()
-  const month = today.getMonth()
+  const year = currentDate.getFullYear()
+  const month = currentDate.getMonth()
 
   const days = useMemo(() => {
     const firstDay = new Date(year, month, 1)
@@ -79,10 +75,7 @@ export default function MonthView({
                   {dayTasks.slice(0, 3).map(task => (
                     <button
                       key={task.id}
-                      onClick={e => {
-                        e.stopPropagation()
-                        onTaskClick(task)
-                      }}
+                      onClick={e => { e.stopPropagation(); onTaskClick(task) }}
                       className="w-full text-left truncate text-xs px-1 py-0.5 rounded bg-ink-raised hover:bg-ink-subtle transition-colors"
                       style={{ borderLeft: `2px solid ${getCategoryColor(task.category_id)}` }}
                     >
@@ -90,9 +83,7 @@ export default function MonthView({
                     </button>
                   ))}
                   {dayTasks.length > 3 && (
-                    <div className="text-xs text-cream-faint px-1">
-                      +{dayTasks.length - 3} more
-                    </div>
+                    <div className="text-xs text-cream-faint px-1">+{dayTasks.length - 3} more</div>
                   )}
                 </div>
               </button>

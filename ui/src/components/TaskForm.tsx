@@ -5,16 +5,25 @@ import { Category } from '../api/categories'
 interface TaskFormProps {
   task?: Task
   categories: Category[]
+  initialDate?: Date
   onClose: () => void
   onSaved: () => void
 }
 
-export default function TaskForm({ task, categories, onClose, onSaved }: TaskFormProps) {
+function toDateInput(d: Date): string {
+  return d.toISOString().split('T')[0]
+}
+
+export default function TaskForm({ task, categories, initialDate, onClose, onSaved }: TaskFormProps) {
   const [type, setType] = useState<TaskType>(task?.type ?? 'task')
   const [title, setTitle] = useState(task?.title ?? '')
   const [description, setDescription] = useState(task?.description ?? '')
   const [date, setDate] = useState(
-    task?.start_time ? task.start_time.split('T')[0] : new Date().toISOString().split('T')[0],
+    task?.start_time
+      ? task.start_time.split('T')[0]
+      : initialDate
+        ? toDateInput(initialDate)
+        : toDateInput(new Date()),
   )
   const [startTime, setStartTime] = useState(
     task?.start_time ? task.start_time.split('T')[1]?.slice(0, 5) : '09:00',
@@ -23,6 +32,8 @@ export default function TaskForm({ task, categories, onClose, onSaved }: TaskFor
   const [categoryId, setCategoryId] = useState(task?.category_id ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  const dateFixed = !task && !!initialDate
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -104,9 +115,7 @@ export default function TaskForm({ task, categories, onClose, onSaved }: TaskFor
                 type="button"
                 onClick={() => setType(t)}
                 className={`flex-1 py-2 rounded text-sm font-medium transition-colors capitalize ${
-                  type === t
-                    ? 'bg-gold text-ink'
-                    : 'bg-ink-raised text-cream-dim hover:text-cream'
+                  type === t ? 'bg-gold text-ink' : 'bg-ink-raised text-cream-dim hover:text-cream'
                 }`}
               >
                 {t}
@@ -122,6 +131,7 @@ export default function TaskForm({ task, categories, onClose, onSaved }: TaskFor
               onChange={e => setTitle(e.target.value)}
               className="input-field"
               required
+              autoFocus
             />
           </div>
 
@@ -135,27 +145,47 @@ export default function TaskForm({ task, categories, onClose, onSaved }: TaskFor
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-cream-faint mb-1.5">Date</label>
-              <input
-                type="date"
-                value={date}
-                onChange={e => setDate(e.target.value)}
-                className="input-field"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-cream-faint mb-1.5">Start Time</label>
-              <input
-                type="time"
-                value={startTime}
-                onChange={e => setStartTime(e.target.value)}
-                className="input-field"
-                required
-              />
-            </div>
+          <div className={`grid gap-3 ${dateFixed ? 'grid-cols-1' : 'grid-cols-2'}`}>
+            {dateFixed ? (
+              <div>
+                <label className="block text-xs text-cream-faint mb-1.5">Time</label>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-cream-dim border border-ink-border rounded px-3 py-2 bg-ink-raised select-none">
+                    {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  </span>
+                  <input
+                    type="time"
+                    value={startTime}
+                    onChange={e => setStartTime(e.target.value)}
+                    className="input-field flex-1"
+                    required
+                  />
+                </div>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-xs text-cream-faint mb-1.5">Date</label>
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={e => setDate(e.target.value)}
+                    className="input-field"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-cream-faint mb-1.5">Start Time</label>
+                  <input
+                    type="time"
+                    value={startTime}
+                    onChange={e => setStartTime(e.target.value)}
+                    className="input-field"
+                    required
+                  />
+                </div>
+              </>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">

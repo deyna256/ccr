@@ -3,26 +3,26 @@ import { Task } from '../api/tasks'
 import { Category } from '../api/categories'
 
 interface WeekViewProps {
+  currentDate: Date
   tasks: Task[]
   categories: Category[]
   onTaskClick: (task: Task) => void
   onEmptySlotClick: (date: Date) => void
 }
 
-const HOURS = Array.from({ length: 14 }, (_, i) => i + 7)
+const HOURS = Array.from({ length: 18 }, (_, i) => i + 6) // 06:00–23:00
 const ROW_H = 3 // rem per hour
 
-export default function WeekView({ tasks, categories, onTaskClick, onEmptySlotClick }: WeekViewProps) {
+export default function WeekView({ currentDate, tasks, categories, onTaskClick, onEmptySlotClick }: WeekViewProps) {
   const days = useMemo(() => {
-    const today = new Date()
-    const day = today.getDay()
-    const diff = today.getDate() - day + (day === 0 ? -6 : 1)
+    const day = currentDate.getDay()
+    const diff = currentDate.getDate() - day + (day === 0 ? -6 : 1)
     return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(today)
+      const d = new Date(currentDate)
       d.setDate(diff + i)
       return d
     })
-  }, [])
+  }, [currentDate])
 
   const tasksByDay = useMemo(() => {
     const map = new Map<string, Task[]>()
