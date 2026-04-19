@@ -1,0 +1,19 @@
+set dotenv-load := true
+
+# Run tests
+test:
+    npm test
+
+# Lint
+style:
+    npm run lint
+
+# Format
+fmt:
+    npm run format
+
+# Build and push image to GHCR (org=your-org version=v1.0.0 just publish)
+publish:
+    docker build -t ghcr.io/{{org}}/frontend:{{version}} -t ghcr.io/{{org}}/frontend:latest .
+    docker push ghcr.io/{{org}}/frontend:{{version}}
+    docker push ghcr.io/{{org}}/frontend:latest
