@@ -7,11 +7,25 @@ x-logging: &default-logging
     max-file: "7"
 
 services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./frontend/dist:/srv:ro
+      - caddy_data:/data
+    depends_on:
+      - backend
+    logging: *default-logging
+    restart: unless-stopped
+
   backend:
     build: ./backend
     image: ghcr.io/${ORG:-task-planner}/backend:${VERSION:-latest}
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     environment:
       - DATABASE_URL=postgres://user:pass@postgres:5432/taskplanner?sslmode=disable
       - JWT_SECRET=${JWT_SECRET}
@@ -22,16 +36,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    logging: *default-logging
-    restart: unless-stopped
-
-  frontend:
-    build: ./frontend
-    image: ghcr.io/${ORG:-task-planner}/frontend:${VERSION:-latest}
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
     logging: *default-logging
     restart: unless-stopped
 
@@ -54,3 +58,4 @@ services:
 volumes:
   postgres_data:
   attachments_data:
+  caddy_data:

@@ -1,0 +1,18 @@
+# Dev config — no TLS, just gzip + static serving
+
+# Root — serve static files with SPA fallback
+root@80:80 {
+    root * /srv
+    index index.html
+
+    # SPA fallback
+    try_files {path} {path}/ /index.html
+
+    # Cache hashed assets
+    handle /assets/* {
+        header Cache-Control "public, max-age=31536000, immutable"
+    }
+}
+
+# Backend API
+reverse_proxy /api/* backend:8080

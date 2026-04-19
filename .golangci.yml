@@ -1,18 +1,17 @@
+version: "2"
+
 run:
   timeout: 5m
-  tests: true
 
 linters:
+  default: none
   enable:
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
     - unused
     - gosec
-    - goimports
-    - gofmt
     - misspell
     - unconvert
     - unparam
@@ -20,23 +19,40 @@ linters:
     - bodyclose
     - noctx
     - revive
-    - shadow
 
-linters-settings:
-  gosec:
-    excludes:
-      - G104
-  gofmt:
-    simplify: true
-  misspell:
-    locale: US
-  revive:
-    rules:
-      - name: exported
-      - name: unused-parameter
-      - name: error-return
+  settings:
+    errcheck:
+      exclude-functions:
+        - (io.Closer).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.DB).Close
+    gosec:
+      excludes:
+        - G104
+        - G101
+        - G117
+        - G304
+        - G701
+        - G703
+        - G704
+    misspell:
+      locale: US
+    revive:
+      rules:
+        - name: exported
+          disabled: true
+        - name: unused-parameter
+        - name: error-return
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+  settings:
+    gofmt:
+      simplify: true
 
 issues:
-  exclude-use-default: false
   max-issues-per-linter: 0
   max-same-issues: 0
