@@ -1,57 +1,42 @@
 set dotenv-load := true
 
-# --- Backend ---
+default:
+    @just --list
 
-# Run tests with coverage
 test:
-    gotestsum --format pkgname -- -race -coverprofile=coverage.out -covermode=atomic $(go list ./... | grep -v /node_modules/)
-    go tool cover -func=coverage.out | tail -1
+    gotestsum --format short --no-summary=skipped -- -race -count=1 -coverprofile=coverage.out -coverpkg=./internal/... $(go list ./... | grep -v /node_modules/)
+    @go tool cover -func=coverage.out | grep "^total"
 
-# Lint
+cover:
+    go tool cover -html=coverage.out
+
 style:
     golangci-lint run ./...
 
-# Format
 fmt:
-    gofmt -w cmd/ internal/ ui/ui.go
-    goimports -w cmd/ internal/ ui/ui.go
+    gofmt -l -w cmd/ internal/ ui/ui.go
+    goimports -l -w cmd/ internal/ ui/ui.go
 
-# Tidy dependencies
 tidy:
     go mod tidy
 
-# --- UI ---
+ui:
+    cd ui && npm ci && npm run build
 
-# Build UI (required before running the server locally)
-ui-build:
-    cd ui && npm run build
-
-# Run UI tests
 ui-test:
     cd ui && npm test
 
-# --- Docker ---
-
-# Build UI and start all services
 up:
     docker-compose up --build
 
-# Start services without rebuilding
-start:
-    docker-compose up
-
-# Stop all services
 down:
     docker-compose down
 
-# Remove volumes, images, and build artifacts
 clean:
-    docker-compose down -v --rmi local
-    rm -rf ui/dist/
+    docker-compose down -v --rmi local --remove-orphans 2>/dev/null || true
+    rm -rf ui/dist/ coverage.out
+    go clean -testcache
 
-# --- Release ---
-
-# Build and push image to GHCR (just publish org=your-org version=v1.0.0)
 publish org version:
     docker build -t ghcr.io/{{org}}/server:{{version}} -t ghcr.io/{{org}}/server:latest .
     docker push ghcr.io/{{org}}/server:{{version}}
