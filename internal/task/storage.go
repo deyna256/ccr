@@ -85,6 +85,10 @@ func scanTask(row interface {
 	if recurrenceRule.Valid {
 		t.RecurrenceRule = &recurrenceRule.String
 	}
+	if t.StartTime != nil && t.EndTime != nil {
+		d := int(t.EndTime.Sub(*t.StartTime).Minutes())
+		t.DurationMinutes = &d
+	}
 
 	return t, nil
 }

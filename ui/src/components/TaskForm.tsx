@@ -33,7 +33,7 @@ export default function TaskForm({ task, categories, onClose, onSaved }: TaskFor
       type,
       title,
       description,
-      start_time: `${date}T${startTime}:00`,
+      start_time: new Date(`${date}T${startTime}:00`).toISOString(),
       duration_minutes: parseInt(duration, 10),
       category_id: categoryId || undefined,
     }

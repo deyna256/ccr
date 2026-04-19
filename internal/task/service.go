@@ -62,6 +62,11 @@ func (s *Service) Create(ctx context.Context, userID string, req WriteRequest) (
 	if taskType == "" {
 		taskType = "task"
 	}
+	endTime := req.EndTime
+	if endTime == nil && req.DurationMinutes != nil && req.StartTime != nil {
+		end := req.StartTime.Add(time.Duration(*req.DurationMinutes) * time.Minute)
+		endTime = &end
+	}
 	t := Task{
 		UserID:         userID,
 		CategoryID:     req.CategoryID,
@@ -69,7 +74,7 @@ func (s *Service) Create(ctx context.Context, userID string, req WriteRequest) (
 		Title:          req.Title,
 		Description:    req.Description,
 		StartTime:      req.StartTime,
-		EndTime:        req.EndTime,
+		EndTime:        endTime,
 		Status:         "pending",
 		IsRecurring:    req.IsRecurring,
 		RecurrenceRule: req.RecurrenceRule,
@@ -85,6 +90,11 @@ func (s *Service) Update(ctx context.Context, id, userID string, req WriteReques
 	if err := validateWriteRequest(req); err != nil {
 		return Task{}, fmt.Errorf("task.service.Update: %w", err)
 	}
+	endTime := req.EndTime
+	if endTime == nil && req.DurationMinutes != nil && req.StartTime != nil {
+		end := req.StartTime.Add(time.Duration(*req.DurationMinutes) * time.Minute)
+		endTime = &end
+	}
 	t := Task{
 		ID:             id,
 		UserID:         userID,
@@ -93,7 +103,7 @@ func (s *Service) Update(ctx context.Context, id, userID string, req WriteReques
 		Title:          req.Title,
 		Description:    req.Description,
 		StartTime:      req.StartTime,
-		EndTime:        req.EndTime,
+		EndTime:        endTime,
 		IsRecurring:    req.IsRecurring,
 		RecurrenceRule: req.RecurrenceRule,
 	}
