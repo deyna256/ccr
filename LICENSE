@@ -1,6 +1,10 @@
 MIT License
 
+<<<<<<< HEAD
 Copyright (c) 2026 Ivan Deyna
+=======
+Copyright (c) 2026 CCR Contributors
+>>>>>>> 0b42811 (chore: add root config files)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

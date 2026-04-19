@@ -1,0 +1,42 @@
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gosec
+    - goimports
+    - gofmt
+    - misspell
+    - unconvert
+    - unparam
+    - whitespace
+    - bodyclose
+    - noctx
+    - revive
+    - shadow
+
+linters-settings:
+  gosec:
+    excludes:
+      - G104
+  gofmt:
+    simplify: true
+  misspell:
+    locale: US
+  revive:
+    rules:
+      - name: exported
+      - name: unused-parameter
+      - name: error-return
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0

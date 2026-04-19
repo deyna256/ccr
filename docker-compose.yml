@@ -1,0 +1,56 @@
+version: "3.8"
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "7"
+
+services:
+  backend:
+    build: ./backend
+    image: ghcr.io/${ORG:-task-planner}/backend:${VERSION:-latest}
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgres://user:pass@postgres:5432/taskplanner?sslmode=disable
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - FILE_STORAGE_PATH=/data/attachments
+    volumes:
+      - attachments_data:/data/attachments
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *default-logging
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    image: ghcr.io/${ORG:-task-planner}/frontend:${VERSION:-latest}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    logging: *default-logging
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: taskplanner
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d taskplanner"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  attachments_data:
