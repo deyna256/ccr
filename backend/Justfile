@@ -1,8 +1,9 @@
 set dotenv-load := true
 
-# Run tests
+# Run tests with coverage
 test:
-    go test -v -race ./...
+    gotestsum --format pkgname -- -race -coverprofile=coverage.out -covermode=atomic ./...
+    go tool cover -func=coverage.out | tail -1
 
 # Lint
 style:
@@ -17,8 +18,8 @@ fmt:
 tidy:
     go mod tidy
 
-# Build and push image to GHCR (org=your-org version=v1.0.0 just publish)
-publish:
+# Build and push image to GHCR (just publish org=your-org version=v1.0.0)
+publish org version:
     docker build -t ghcr.io/{{org}}/backend:{{version}} -t ghcr.io/{{org}}/backend:latest .
     docker push ghcr.io/{{org}}/backend:{{version}}
     docker push ghcr.io/{{org}}/backend:latest
