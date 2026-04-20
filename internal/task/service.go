@@ -24,26 +24,11 @@ func NewService(storage Storage, fileStoragePath string, log *slog.Logger) *Serv
 }
 
 func (s *Service) List(ctx context.Context, userID string, f ListFilter) ([]Task, error) {
-	regular, err := s.storage.List(ctx, userID, f)
+	tasks, err := s.storage.List(ctx, userID, f)
 	if err != nil {
 		return nil, fmt.Errorf("task.service.List: %w", err)
 	}
-	if f.From == nil || f.To == nil {
-		return regular, nil
-	}
-	templates, err := s.storage.ListRecurring(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("task.service.List: %w", err)
-	}
-	result := append([]Task{}, regular...)
-	for _, tmpl := range templates {
-		occurrences, err := expand(tmpl, *f.From, *f.To)
-		if err != nil {
-			return nil, fmt.Errorf("task.service.List: %w", err)
-		}
-		result = append(result, occurrences...)
-	}
-	return result, nil
+	return tasks, nil
 }
 
 func (s *Service) GetByID(ctx context.Context, id, userID string) (Task, error) {
@@ -55,12 +40,8 @@ func (s *Service) GetByID(ctx context.Context, id, userID string) (Task, error) 
 }
 
 func (s *Service) Create(ctx context.Context, userID string, req WriteRequest) (Task, error) {
-	if err := validateWriteRequest(req); err != nil {
-		return Task{}, fmt.Errorf("task.service.Create: %w", err)
-	}
-	taskType := req.Type
-	if taskType == "" {
-		taskType = "task"
+	if req.Title == "" {
+		return Task{}, fmt.Errorf("task.service.Create: %w", ErrInvalid)
 	}
 	endTime := req.EndTime
 	if endTime == nil && req.DurationMinutes != nil && req.StartTime != nil {
@@ -68,17 +49,14 @@ func (s *Service) Create(ctx context.Context, userID string, req WriteRequest) (
 		endTime = &end
 	}
 	t := Task{
-		UserID:         userID,
-		CategoryID:     req.CategoryID,
-		Type:           taskType,
-		Title:          req.Title,
-		Description:    req.Description,
-		StartTime:      req.StartTime,
-		EndTime:        endTime,
-		Status:         "pending",
-		Color:          req.Color,
-		IsRecurring:    req.IsRecurring,
-		RecurrenceRule: req.RecurrenceRule,
+		UserID:      userID,
+		Type:        "task",
+		Title:       req.Title,
+		Description: req.Description,
+		StartTime:   req.StartTime,
+		EndTime:     endTime,
+		Status:      "pending",
+		Color:       req.Color,
 	}
 	created, err := s.storage.Create(ctx, t)
 	if err != nil {
@@ -88,8 +66,8 @@ func (s *Service) Create(ctx context.Context, userID string, req WriteRequest) (
 }
 
 func (s *Service) Update(ctx context.Context, id, userID string, req WriteRequest) (Task, error) {
-	if err := validateWriteRequest(req); err != nil {
-		return Task{}, fmt.Errorf("task.service.Update: %w", err)
+	if req.Title == "" {
+		return Task{}, fmt.Errorf("task.service.Update: %w", ErrInvalid)
 	}
 	endTime := req.EndTime
 	if endTime == nil && req.DurationMinutes != nil && req.StartTime != nil {
@@ -97,33 +75,20 @@ func (s *Service) Update(ctx context.Context, id, userID string, req WriteReques
 		endTime = &end
 	}
 	t := Task{
-		ID:             id,
-		UserID:         userID,
-		CategoryID:     req.CategoryID,
-		Type:           req.Type,
-		Title:          req.Title,
-		Description:    req.Description,
-		StartTime:      req.StartTime,
-		EndTime:        endTime,
-		Color:          req.Color,
-		IsRecurring:    req.IsRecurring,
-		RecurrenceRule: req.RecurrenceRule,
+		ID:          id,
+		UserID:      userID,
+		Type:        "task",
+		Title:       req.Title,
+		Description: req.Description,
+		StartTime:   req.StartTime,
+		EndTime:     endTime,
+		Color:       req.Color,
 	}
 	updated, err := s.storage.Update(ctx, t)
 	if err != nil {
 		return Task{}, fmt.Errorf("task.service.Update: %w", err)
 	}
 	return updated, nil
-}
-
-func validateWriteRequest(req WriteRequest) error {
-	if req.Title == "" {
-		return ErrInvalid
-	}
-	if req.Type != "" && req.Type != "task" && req.Type != "event" {
-		return ErrInvalid
-	}
-	return nil
 }
 
 func (s *Service) UpdateStatus(ctx context.Context, id, userID, status string) (Task, error) {
@@ -137,13 +102,6 @@ func (s *Service) UpdateStatus(ctx context.Context, id, userID, status string) (
 	case "pending":
 		// both nil
 	default:
-		return Task{}, fmt.Errorf("task.service.UpdateStatus: %w", ErrInvalid)
-	}
-	existing, err := s.storage.GetByID(ctx, id, userID)
-	if err != nil {
-		return Task{}, fmt.Errorf("task.service.UpdateStatus: %w", err)
-	}
-	if status == "done" && existing.Type == "event" {
 		return Task{}, fmt.Errorf("task.service.UpdateStatus: %w", ErrInvalid)
 	}
 	t, err := s.storage.UpdateStatus(ctx, id, userID, status, completedAt, archivedAt)

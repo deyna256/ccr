@@ -10,7 +10,6 @@ import (
 
 type Storage interface {
 	List(ctx context.Context, userID string, f ListFilter) ([]Task, error)
-	ListRecurring(ctx context.Context, userID string) ([]Task, error)
 	GetByID(ctx context.Context, id, userID string) (Task, error)
 	Create(ctx context.Context, t Task) (Task, error)
 	Update(ctx context.Context, t Task) (Task, error)
@@ -42,7 +41,6 @@ func scanTask(row interface {
 	var color sql.NullString
 	var completedAt sql.NullTime
 	var archivedAt sql.NullTime
-	var recurrenceRule sql.NullString
 
 	err := row.Scan(
 		&t.ID,
@@ -57,8 +55,6 @@ func scanTask(row interface {
 		&color,
 		&completedAt,
 		&archivedAt,
-		&t.IsRecurring,
-		&recurrenceRule,
 		&t.CreatedAt,
 		&t.UpdatedAt,
 	)
@@ -87,9 +83,6 @@ func scanTask(row interface {
 	if archivedAt.Valid {
 		t.ArchivedAt = &archivedAt.Time
 	}
-	if recurrenceRule.Valid {
-		t.RecurrenceRule = &recurrenceRule.String
-	}
 	if t.StartTime != nil && t.EndTime != nil {
 		d := int(t.EndTime.Sub(*t.StartTime).Minutes())
 		t.DurationMinutes = &d
@@ -99,7 +92,7 @@ func scanTask(row interface {
 }
 
 const taskColumns = `id, user_id, category_id, type, title, description, start_time, end_time,
-	status, color, completed_at, archived_at, is_recurring, recurrence_rule, created_at, updated_at`
+	status, color, completed_at, archived_at, created_at, updated_at`
 
 func (s *PostgresStorage) List(ctx context.Context, userID string, f ListFilter) ([]Task, error) {
 	var rows *sql.Rows
@@ -147,32 +140,6 @@ func (s *PostgresStorage) List(ctx context.Context, userID string, f ListFilter)
 	return tasks, nil
 }
 
-func (s *PostgresStorage) ListRecurring(ctx context.Context, userID string) ([]Task, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT `+taskColumns+` FROM tasks
-		 WHERE user_id=$1 AND is_recurring=true
-		 ORDER BY created_at`,
-		userID,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("task.storage.ListRecurring: %w", err)
-	}
-	defer rows.Close()
-
-	var tasks []Task
-	for rows.Next() {
-		t, err := scanTask(rows)
-		if err != nil {
-			return nil, fmt.Errorf("task.storage.ListRecurring: %w", err)
-		}
-		tasks = append(tasks, t)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("task.storage.ListRecurring: %w", err)
-	}
-	return tasks, nil
-}
-
 func (s *PostgresStorage) GetByID(ctx context.Context, id, userID string) (Task, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT `+taskColumns+` FROM tasks WHERE id=$1 AND user_id=$2`,
@@ -190,12 +157,10 @@ func (s *PostgresStorage) GetByID(ctx context.Context, id, userID string) (Task,
 
 func (s *PostgresStorage) Create(ctx context.Context, t Task) (Task, error) {
 	row := s.db.QueryRowContext(ctx,
-		`INSERT INTO tasks (user_id, category_id, type, title, description, start_time, end_time,
-		  status, color, completed_at, archived_at, is_recurring, recurrence_rule)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		`INSERT INTO tasks (user_id, type, title, description, start_time, end_time, status, color)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		 RETURNING `+taskColumns,
-		t.UserID, t.CategoryID, t.Type, t.Title, t.Description, t.StartTime, t.EndTime,
-		t.Status, t.Color, t.CompletedAt, t.ArchivedAt, t.IsRecurring, t.RecurrenceRule,
+		t.UserID, t.Type, t.Title, t.Description, t.StartTime, t.EndTime, t.Status, t.Color,
 	)
 	created, err := scanTask(row)
 	if err != nil {
@@ -207,12 +172,10 @@ func (s *PostgresStorage) Create(ctx context.Context, t Task) (Task, error) {
 func (s *PostgresStorage) Update(ctx context.Context, t Task) (Task, error) {
 	row := s.db.QueryRowContext(ctx,
 		`UPDATE tasks SET
-		  category_id=$1, type=$2, title=$3, description=$4, start_time=$5, end_time=$6,
-		  color=$7, is_recurring=$8, recurrence_rule=$9, updated_at=NOW()
-		 WHERE id=$10 AND user_id=$11
+		  type=$1, title=$2, description=$3, start_time=$4, end_time=$5, color=$6, updated_at=NOW()
+		 WHERE id=$7 AND user_id=$8
 		 RETURNING `+taskColumns,
-		t.CategoryID, t.Type, t.Title, t.Description, t.StartTime, t.EndTime,
-		t.Color, t.IsRecurring, t.RecurrenceRule, t.ID, t.UserID,
+		t.Type, t.Title, t.Description, t.StartTime, t.EndTime, t.Color, t.ID, t.UserID,
 	)
 	updated, err := scanTask(row)
 	if errors.Is(err, sql.ErrNoRows) {
