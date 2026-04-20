@@ -1,10 +1,8 @@
-import { useState } from 'react'
-import { Task, TaskType, CreateTaskRequest, createTask, updateTask, deleteTask, updateTaskStatus } from '../api/tasks'
-import { Category } from '../api/categories'
+import { useState, useEffect } from 'react'
+import { Task, CreateTaskRequest, createTask, updateTask, deleteTask, updateTaskStatus } from '../api/tasks'
 
 interface TaskFormProps {
   task?: Task
-  categories: Category[]
   initialDate?: Date
   onClose: () => void
   onSaved: () => void
@@ -18,8 +16,18 @@ function toTimeInput(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-export default function TaskForm({ task, categories, initialDate, onClose, onSaved }: TaskFormProps) {
-  const [type, setType] = useState<TaskType>(task?.type ?? 'task')
+const COLOR_PALETTE = [
+  '#c4913a', // gold
+  '#4daa74', // jade
+  '#d95b5b', // ember
+  '#5b8dd9', // blue
+  '#8b6dd9', // violet
+  '#d96b8b', // rose
+  '#4daaaa', // teal
+  '#c87d4a', // amber
+]
+
+export default function TaskForm({ task, initialDate, onClose, onSaved }: TaskFormProps) {
   const [title, setTitle] = useState(task?.title ?? '')
   const [description, setDescription] = useState(task?.description ?? '')
 
@@ -36,23 +44,19 @@ export default function TaskForm({ task, categories, initialDate, onClose, onSav
     startDate ? toTimeInput(startDate) : '09:00',
   )
   const [duration, setDuration] = useState(task?.duration_minutes?.toString() ?? '60')
-  const [categoryId, setCategoryId] = useState(task?.category_id ?? '')
   const [color, setColor] = useState(task?.color ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const COLOR_PALETTE = [
-    '#c4913a', // gold
-    '#4daa74', // jade
-    '#d95b5b', // ember
-    '#5b8dd9', // blue
-    '#8b6dd9', // violet
-    '#d96b8b', // rose
-    '#4daaaa', // teal
-    '#c87d4a', // amber
-  ]
-
   const dateFixed = !task && !!initialDate
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -60,12 +64,10 @@ export default function TaskForm({ task, categories, initialDate, onClose, onSav
     setSaving(true)
 
     const data: CreateTaskRequest = {
-      type,
       title,
       description,
       start_time: new Date(`${date}T${startTime}:00`).toISOString(),
       duration_minutes: parseInt(duration, 10),
-      category_id: categoryId || undefined,
       color: color || undefined,
     }
 
@@ -127,21 +129,6 @@ export default function TaskForm({ task, categories, initialDate, onClose, onSav
               {error}
             </div>
           )}
-
-          <div className="flex gap-1.5">
-            {(['task', 'event'] as TaskType[]).map(t => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setType(t)}
-                className={`flex-1 py-2 rounded text-sm font-medium transition-colors capitalize ${
-                  type === t ? 'bg-gold text-ink' : 'bg-ink-raised text-cream-dim hover:text-cream'
-                }`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
 
           <div>
             <label className="block text-xs text-cream-faint mb-1.5">Title</label>
@@ -208,31 +195,16 @@ export default function TaskForm({ task, categories, initialDate, onClose, onSav
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-cream-faint mb-1.5">Duration (min)</label>
-              <input
-                type="number"
-                value={duration}
-                onChange={e => setDuration(e.target.value)}
-                className="input-field"
-                min="15"
-                step="15"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-cream-faint mb-1.5">Category</label>
-              <select
-                value={categoryId}
-                onChange={e => setCategoryId(e.target.value)}
-                className="input-field"
-              >
-                <option value="">None</option>
-                {categories.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </div>
+          <div>
+            <label className="block text-xs text-cream-faint mb-1.5">Duration (min)</label>
+            <input
+              type="number"
+              value={duration}
+              onChange={e => setDuration(e.target.value)}
+              className="input-field"
+              min="15"
+              step="15"
+            />
           </div>
 
           <div>

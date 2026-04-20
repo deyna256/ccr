@@ -3,8 +3,6 @@ import WeekView from '../components/WeekView'
 import MonthView from '../components/MonthView'
 import TaskForm from '../components/TaskForm'
 import { Task, listTasks, updateTask } from '../api/tasks'
-import { Category, listCategories } from '../api/categories'
-
 
 type ViewMode = 'week' | 'month'
 
@@ -26,7 +24,6 @@ export default function CalendarPage() {
   const [view, setView] = useState<ViewMode>('week')
   const [currentDate, setCurrentDate] = useState(new Date())
   const [tasks, setTasks] = useState<Task[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -34,16 +31,15 @@ export default function CalendarPage() {
   const [newTaskDate, setNewTaskDate] = useState<Date | null>(null)
 
   useEffect(() => {
-    Promise.all([listTasks(), listCategories()])
-      .then(([t, c]) => { setTasks(t); setCategories(c) })
+    listTasks()
+      .then(t => setTasks(t))
       .catch(e => setError(e instanceof Error ? e.message : 'Failed to load'))
       .finally(() => setLoading(false))
   }, [])
 
   async function handleSaved() {
-    const [t, c] = await Promise.all([listTasks(), listCategories()])
+    const t = await listTasks()
     setTasks(t)
-    setCategories(c)
     setEditingTask(null)
     setNewTaskDate(null)
   }
@@ -53,16 +49,13 @@ export default function CalendarPage() {
     if (!task) return
     try {
       await updateTask(taskId, {
-        type: task.type,
         title: task.title,
         description: task.description,
         start_time: newStart.toISOString(),
         duration_minutes: task.duration_minutes,
-        category_id: task.category_id,
         color: task.color,
       })
-      const updated = await listTasks()
-      setTasks(updated)
+      setTasks(await listTasks())
     } catch {
       // task stays in place on error
     }
@@ -73,23 +66,16 @@ export default function CalendarPage() {
     if (!task) return
     try {
       await updateTask(taskId, {
-        type: task.type,
         title: task.title,
         description: task.description,
         start_time: newStart.toISOString(),
         duration_minutes: durationMinutes,
-        category_id: task.category_id,
         color: task.color,
       })
-      const updated = await listTasks()
-      setTasks(updated)
+      setTasks(await listTasks())
     } catch {
       // task stays in place on error
     }
-  }
-
-  function handleEmptySlotClick(date: Date) {
-    setNewTaskDate(date)
   }
 
   function navigate(dir: -1 | 1) {
@@ -122,7 +108,6 @@ export default function CalendarPage() {
       {/* Toolbar */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-ink-border">
         <div className="flex items-center gap-3">
-          {/* View toggle */}
           <div className="flex items-center gap-0.5">
             {(['week', 'month'] as ViewMode[]).map(v => (
               <button
@@ -137,7 +122,6 @@ export default function CalendarPage() {
             ))}
           </div>
 
-          {/* Navigation */}
           <div className="flex items-center gap-1">
             <button
               onClick={() => navigate(-1)}
@@ -172,9 +156,8 @@ export default function CalendarPage() {
         <WeekView
           currentDate={currentDate}
           tasks={tasks}
-          categories={categories}
           onTaskClick={t => setEditingTask(t)}
-          onEmptySlotClick={handleEmptySlotClick}
+          onEmptySlotClick={d => setNewTaskDate(d)}
           onTaskMove={handleTaskMove}
           onTaskResize={handleTaskResize}
         />
@@ -182,16 +165,14 @@ export default function CalendarPage() {
         <MonthView
           currentDate={currentDate}
           tasks={tasks}
-          categories={categories}
           onTaskClick={t => setEditingTask(t)}
-          onEmptySlotClick={handleEmptySlotClick}
+          onEmptySlotClick={d => setNewTaskDate(d)}
         />
       )}
 
       {newTaskDate && (
         <TaskForm
           initialDate={newTaskDate}
-          categories={categories}
           onClose={() => setNewTaskDate(null)}
           onSaved={handleSaved}
         />
@@ -200,7 +181,6 @@ export default function CalendarPage() {
       {editingTask && (
         <TaskForm
           task={editingTask}
-          categories={categories}
           onClose={() => setEditingTask(null)}
           onSaved={handleSaved}
         />

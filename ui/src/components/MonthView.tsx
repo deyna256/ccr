@@ -1,16 +1,14 @@
 import { useMemo } from 'react'
 import { Task } from '../api/tasks'
-import { Category } from '../api/categories'
 
 interface MonthViewProps {
   currentDate: Date
   tasks: Task[]
-  categories: Category[]
   onTaskClick: (task: Task) => void
   onEmptySlotClick: (date: Date) => void
 }
 
-export default function MonthView({ currentDate, tasks, categories, onTaskClick, onEmptySlotClick }: MonthViewProps) {
+export default function MonthView({ currentDate, tasks, onTaskClick, onEmptySlotClick }: MonthViewProps) {
   const today = new Date()
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
@@ -36,11 +34,6 @@ export default function MonthView({ currentDate, tasks, categories, onTaskClick,
     }
     return map
   }, [tasks])
-
-  const getCategoryColor = (id?: string) => {
-    if (!id) return '#57535e'
-    return categories.find(c => c.id === id)?.color ?? '#57535e'
-  }
 
   return (
     <div className="flex-1 overflow-auto">
@@ -77,7 +70,7 @@ export default function MonthView({ currentDate, tasks, categories, onTaskClick,
                       key={task.id}
                       onClick={e => { e.stopPropagation(); onTaskClick(task) }}
                       className="w-full text-left truncate text-xs px-1 py-0.5 rounded bg-ink-raised hover:bg-ink-subtle transition-colors"
-                      style={{ borderLeft: `2px solid ${getCategoryColor(task.category_id)}` }}
+                      style={{ borderLeft: `2px solid ${task.color ?? '#57535e'}` }}
                     >
                       <span className="text-cream-dim">{task.title}</span>
                     </button>
