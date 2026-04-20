@@ -37,6 +37,75 @@ type Interaction =
       previewDuration: number
     }
 
+// Returns left and width as fractions [0,1] for each task, placing overlapping tasks side by side.
+function computeLayout(tasks: Task[]): Map<string, { leftFrac: number; widthFrac: number }> {
+  const result = new Map<string, { leftFrac: number; widthFrac: number }>()
+  if (!tasks.length) return result
+
+  const sorted = [...tasks].sort(
+    (a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+  )
+
+  function overlaps(a: Task, b: Task) {
+    const aStart = new Date(a.start_time).getTime()
+    const aEnd = aStart + (a.duration_minutes ?? 60) * 60_000
+    const bStart = new Date(b.start_time).getTime()
+    const bEnd = bStart + (b.duration_minutes ?? 60) * 60_000
+    return aStart < bEnd && bStart < aEnd
+  }
+
+  // Build adjacency for connected-component grouping
+  const n = sorted.length
+  const adj: number[][] = Array.from({ length: n }, () => [])
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      if (overlaps(sorted[i], sorted[j])) {
+        adj[i].push(j)
+        adj[j].push(i)
+      }
+    }
+  }
+
+  const visited = new Array(n).fill(false)
+  for (let start = 0; start < n; start++) {
+    if (visited[start]) continue
+
+    // BFS to collect this overlap group
+    const component: number[] = []
+    const queue = [start]
+    visited[start] = true
+    while (queue.length) {
+      const node = queue.shift()!
+      component.push(node)
+      for (const nb of adj[node]) {
+        if (!visited[nb]) { visited[nb] = true; queue.push(nb) }
+      }
+    }
+
+    // Greedy lane assignment within the group
+    const componentTasks = component.map(i => sorted[i])
+    const laneEnds: number[] = []
+    const laneMap = new Map<string, number>()
+
+    for (const task of componentTasks) {
+      const startMs = new Date(task.start_time).getTime()
+      const endMs = startMs + (task.duration_minutes ?? 60) * 60_000
+      let lane = laneEnds.findIndex(e => e <= startMs)
+      if (lane === -1) { lane = laneEnds.length; laneEnds.push(endMs) }
+      else { laneEnds[lane] = endMs }
+      laneMap.set(task.id, lane)
+    }
+
+    const totalLanes = laneEnds.length
+    for (const task of componentTasks) {
+      const lane = laneMap.get(task.id)!
+      result.set(task.id, { leftFrac: lane / totalLanes, widthFrac: 1 / totalLanes })
+    }
+  }
+
+  return result
+}
+
 export default function WeekView({
   currentDate, tasks,
   onTaskClick, onEmptySlotClick, onTaskMove, onTaskResize,
@@ -66,34 +135,30 @@ export default function WeekView({
   const bodyRef = useRef<HTMLDivElement>(null)
   const [interaction, setInteraction] = useState<Interaction | null>(null)
   const interRef = useRef<Interaction | null>(null)
+  // Prevents empty slot button from firing right after an interaction ends
+  const justInteractedRef = useRef(false)
 
   function pxPerMin(): number {
     if (!bodyRef.current) return (ROW_H * 16) / 60
     return bodyRef.current.offsetHeight / (HOURS.length * 60)
   }
 
-  function snap15(min: number) {
-    return Math.round(min / 15) * 15
-  }
+  function snap15(min: number) { return Math.round(min / 15) * 15 }
 
   function getDayIdxFromX(mouseX: number): number {
     if (!bodyRef.current) return 0
     const rect = bodyRef.current.getBoundingClientRect()
-    const available = rect.width - GUTTER_PX
-    const colWidth = available / 7
-    const x = mouseX - rect.left - GUTTER_PX
-    return Math.max(0, Math.min(6, Math.floor(x / colWidth)))
+    const colWidth = (rect.width - GUTTER_PX) / 7
+    return Math.max(0, Math.min(6, Math.floor((mouseX - rect.left - GUTTER_PX) / colWidth)))
   }
 
   function getMinFromY(mouseY: number): number {
     if (!bodyRef.current) return HOURS[0] * 60
     const rect = bodyRef.current.getBoundingClientRect()
-    const y = mouseY - rect.top
-    const raw = HOURS[0] * 60 + y / pxPerMin()
+    const raw = HOURS[0] * 60 + (mouseY - rect.top) / pxPerMin()
     return Math.max(HOURS[0] * 60, Math.min(23 * 60, raw))
   }
 
-  // Mouse-down on card body → start move interaction
   function handleMoveStart(e: React.MouseEvent, task: Task) {
     if (e.button !== 0) return
     e.preventDefault()
@@ -101,7 +166,6 @@ export default function WeekView({
     const start = new Date(task.start_time)
     const taskTopMin = start.getHours() * 60 + start.getMinutes()
     const offsetMin = (e.clientY - (bodyRef.current?.getBoundingClientRect().top ?? 0)) / pxPerMin() - (taskTopMin - HOURS[0] * 60)
-    const dayIdx = getDayIdxFromX(e.clientX)
     const state: Interaction = {
       kind: 'move',
       task,
@@ -109,14 +173,13 @@ export default function WeekView({
       startX: e.clientX,
       startY: e.clientY,
       moved: false,
-      previewDayIdx: dayIdx,
+      previewDayIdx: getDayIdxFromX(e.clientX),
       previewMin: taskTopMin,
     }
     interRef.current = state
     setInteraction(state)
   }
 
-  // Mouse-down on resize handle
   function handleResizeStart(e: React.MouseEvent, task: Task, dir: 'top' | 'bottom') {
     if (e.button !== 0) return
     e.preventDefault()
@@ -146,32 +209,25 @@ export default function WeekView({
         const dx = Math.abs(e.clientX - cur.startX)
         const dy = Math.abs(e.clientY - cur.startY)
         const moved = cur.moved || dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD
-
-        const dayIdx = getDayIdxFromX(e.clientX)
         const rawMin = getMinFromY(e.clientY) - cur.offsetMin
         const previewMin = snap15(Math.max(HOURS[0] * 60, Math.min(23 * 60 - 15, rawMin)))
-
-        const next: Interaction = { ...cur, moved, previewDayIdx: dayIdx, previewMin }
+        const next: Interaction = { ...cur, moved, previewDayIdx: getDayIdxFromX(e.clientX), previewMin }
         interRef.current = next
         setInteraction(next)
       } else {
-        // resize
         const absoluteMin = getMinFromY(e.clientY)
-
         let previewStart = cur.origStart
         let previewDuration = cur.origDuration
 
         if (cur.dir === 'bottom') {
           const origStartMin = cur.origStart.getHours() * 60 + cur.origStart.getMinutes()
-          const endMin = snap15(Math.max(origStartMin + 15, absoluteMin))
-          previewDuration = endMin - origStartMin
+          previewDuration = Math.max(15, snap15(absoluteMin) - origStartMin)
         } else {
           const origEndMin = cur.origStart.getHours() * 60 + cur.origStart.getMinutes() + cur.origDuration
-          const newStartMin = snap15(Math.min(origEndMin - 15, absoluteMin))
-          const clamped = Math.max(HOURS[0] * 60, newStartMin)
-          previewDuration = origEndMin - clamped
+          const newStartMin = Math.max(HOURS[0] * 60, snap15(Math.min(origEndMin - 15, absoluteMin)))
+          previewDuration = origEndMin - newStartMin
           previewStart = new Date(cur.origStart)
-          previewStart.setHours(Math.floor(clamped / 60), clamped % 60, 0, 0)
+          previewStart.setHours(Math.floor(newStartMin / 60), newStartMin % 60, 0, 0)
         }
 
         const moved = cur.moved || previewDuration !== cur.origDuration || previewStart.getTime() !== cur.origStart.getTime()
@@ -193,14 +249,15 @@ export default function WeekView({
         } else if (!cur.moved) {
           onTaskClick(cur.task)
         }
-      } else {
-        if (cur.moved && onTaskResize) {
-          onTaskResize(cur.task.id, cur.previewStart, cur.previewDuration)
-        }
+      } else if (cur.moved && onTaskResize) {
+        onTaskResize(cur.task.id, cur.previewStart, cur.previewDuration)
       }
 
       interRef.current = null
       setInteraction(null)
+      // Block the empty slot button for the rest of this event cycle
+      justInteractedRef.current = true
+      setTimeout(() => { justInteractedRef.current = false }, 0)
     }
 
     document.addEventListener('mousemove', onMouseMove)
@@ -212,11 +269,8 @@ export default function WeekView({
   }, [days, onTaskMove, onTaskResize, onTaskClick])
 
   const totalH = HOURS.length * ROW_H
-
-  // For move preview: which day column shows indicator
   const movePreview = interaction?.kind === 'move' && interaction.moved ? interaction : null
   const moveDateStr = movePreview ? days[movePreview.previewDayIdx]?.toISOString().split('T')[0] : null
-
   const isAnyInteraction = interaction !== null
 
   return (
@@ -259,13 +313,10 @@ export default function WeekView({
           {days.map((day) => {
             const dateStr = day.toISOString().split('T')[0]
             const dayTasks = tasksByDay.get(dateStr) ?? []
-            const showMoveIndicator = moveDateStr === dateStr
+            const layout = computeLayout(dayTasks)
 
             return (
-              <div
-                key={dateStr}
-                className="flex-1 relative border-l border-ink-border"
-              >
+              <div key={dateStr} className="flex-1 relative border-l border-ink-border">
                 {/* Hour grid lines */}
                 {HOURS.map(hour => (
                   <div
@@ -276,7 +327,7 @@ export default function WeekView({
                 ))}
 
                 {/* Move preview indicator */}
-                {showMoveIndicator && movePreview && (
+                {moveDateStr === dateStr && movePreview && (
                   <div
                     className="absolute left-0 right-0 z-20 pointer-events-none"
                     style={{ top: `${(movePreview.previewMin - HOURS[0] * 60) / 60 * ROW_H}rem` }}
@@ -291,30 +342,33 @@ export default function WeekView({
                   const isMoved = interaction?.kind === 'move' && interaction.task.id === task.id && interaction.moved
                   const isResizing = interaction?.kind === 'resize' && interaction.task.id === task.id
 
-                  let displayStart = new Date(task.start_time)
-                  let displayDuration = task.duration_minutes ?? 60
-
-                  if (isResizing && interaction.kind === 'resize') {
-                    displayStart = interaction.previewStart
-                    displayDuration = interaction.previewDuration
-                  }
+                  const displayStart = isResizing && interaction.kind === 'resize'
+                    ? interaction.previewStart
+                    : new Date(task.start_time)
+                  const displayDuration = isResizing && interaction.kind === 'resize'
+                    ? interaction.previewDuration
+                    : (task.duration_minutes ?? 60)
 
                   const top = ((displayStart.getHours() - HOURS[0]) * 60 + displayStart.getMinutes()) / 60 * ROW_H
                   const height = Math.max(displayDuration / 60 * ROW_H, 0.75)
                   const color = task.color ?? '#57535e'
+                  const { leftFrac, widthFrac } = layout.get(task.id) ?? { leftFrac: 0, widthFrac: 1 }
 
                   return (
                     <div
                       key={task.id}
-                      className={`absolute left-0.5 right-0.5 rounded overflow-hidden z-10 select-none ${
-                        isMoved ? 'opacity-30' : 'opacity-100'
-                      }`}
+                      onClick={e => e.stopPropagation()}
+                      className={`absolute rounded overflow-hidden z-10 select-none ${isMoved ? 'opacity-30' : 'opacity-100'}`}
                       style={{
                         top: `${top}rem`,
                         height: `${height}rem`,
+                        left: `calc(${leftFrac * 100}% + 1px)`,
+                        width: `calc(${widthFrac * 100}% - 2px)`,
                         backgroundColor: color + '4D',
                         borderLeft: `2px solid ${color}`,
-                        cursor: isAnyInteraction ? (interaction?.kind === 'resize' ? 'ns-resize' : 'grabbing') : 'grab',
+                        cursor: isAnyInteraction
+                          ? (interaction?.kind === 'resize' ? 'ns-resize' : 'grabbing')
+                          : 'grab',
                       }}
                     >
                       {/* Top resize handle */}
@@ -326,7 +380,7 @@ export default function WeekView({
 
                       {/* Card body — drag to move */}
                       <div
-                        className="absolute inset-0 top-3 bottom-3 px-1.5 py-1"
+                        className="absolute inset-0 top-3 bottom-3 px-1.5 py-1 overflow-hidden"
                         onMouseDown={e => handleMoveStart(e, task)}
                       >
                         <div className="text-xs text-cream truncate leading-tight">{task.title}</div>
@@ -348,9 +402,11 @@ export default function WeekView({
                   )
                 })}
 
-                {/* Empty slot click */}
+                {/* Empty slot click — behind tasks, blocked briefly after any interaction */}
                 <button
-                  onClick={() => !isAnyInteraction && onEmptySlotClick(day)}
+                  onClick={() => {
+                    if (!justInteractedRef.current && !isAnyInteraction) onEmptySlotClick(day)
+                  }}
                   className="absolute inset-0 w-full h-full"
                   tabIndex={-1}
                 />
