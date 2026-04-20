@@ -10,7 +10,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/task-planner/server/internal/auth"
-	"github.com/task-planner/server/internal/category"
 	"github.com/task-planner/server/internal/correlation"
 	"github.com/task-planner/server/internal/httplog"
 	"github.com/task-planner/server/internal/task"
@@ -21,10 +20,6 @@ func newServer(cfg Config, db *sql.DB, log *slog.Logger) *http.Server {
 	authStorage := auth.NewPostgresStorage(db)
 	authService := auth.NewService(authStorage, cfg.JWTSecret, cfg.JWTRefreshSecret)
 	authHandler := auth.NewHandler(authService, log)
-
-	catStorage := category.NewPostgresStorage(db)
-	catService := category.NewService(catStorage)
-	catHandler := category.NewHandler(catService, log)
 
 	taskStorage := task.NewPostgresStorage(db)
 	taskService := task.NewService(taskStorage, cfg.FileStoragePath, log)
@@ -38,7 +33,6 @@ func newServer(cfg Config, db *sql.DB, log *slog.Logger) *http.Server {
 		r.Mount("/auth", authHandler.Routes())
 		r.Group(func(r chi.Router) {
 			r.Use(auth.Middleware(cfg.JWTSecret))
-			r.Mount("/categories", catHandler.Routes())
 			r.Mount("/tasks", taskHandler.Routes())
 			r.Get("/attachments/{id}/file", taskHandler.ServeFile)
 		})
