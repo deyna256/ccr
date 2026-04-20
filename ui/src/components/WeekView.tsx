@@ -1,11 +1,9 @@
-import { useMemo, useRef, useState, useCallback, useEffect } from 'react'
+import { useMemo, useRef, useState, useEffect } from 'react'
 import { Task } from '../api/tasks'
-import { Category } from '../api/categories'
 
 interface WeekViewProps {
   currentDate: Date
   tasks: Task[]
-  categories: Category[]
   onTaskClick: (task: Task) => void
   onEmptySlotClick: (date: Date) => void
   onTaskMove?: (taskId: string, newStart: Date) => void
@@ -14,20 +12,33 @@ interface WeekViewProps {
 
 const HOURS = Array.from({ length: 18 }, (_, i) => i + 6) // 06:00–23:00
 const ROW_H = 3 // rem per hour
+const GUTTER_PX = 48 // w-12
+const MOVE_THRESHOLD = 6 // px before move activates
 
-type ResizeType = 'top' | 'bottom'
-
-interface ResizeState {
-  taskId: string
-  type: ResizeType
-  originalStart: Date
-  originalDuration: number
-  previewStart: Date
-  previewDuration: number
-}
+type Interaction =
+  | {
+      kind: 'move'
+      task: Task
+      offsetMin: number
+      startX: number
+      startY: number
+      moved: boolean
+      previewDayIdx: number
+      previewMin: number
+    }
+  | {
+      kind: 'resize'
+      task: Task
+      dir: 'top' | 'bottom'
+      origStart: Date
+      origDuration: number
+      moved: boolean
+      previewStart: Date
+      previewDuration: number
+    }
 
 export default function WeekView({
-  currentDate, tasks, categories,
+  currentDate, tasks,
   onTaskClick, onEmptySlotClick, onTaskMove, onTaskResize,
 }: WeekViewProps) {
   const days = useMemo(() => {
@@ -52,137 +63,144 @@ export default function WeekView({
     return map
   }, [tasks])
 
-  const getCategoryColor = useCallback((id?: string) => {
-    if (!id) return '#57535e'
-    return categories.find(c => c.id === id)?.color ?? '#57535e'
-  }, [categories])
-
-  // --- Drag (move) state ---
   const bodyRef = useRef<HTMLDivElement>(null)
-  const [dragTaskId, setDragTaskId] = useState<string | null>(null)
-  const [dragOffsetMin, setDragOffsetMin] = useState(0)
-  const [dropInfo, setDropInfo] = useState<{ dateStr: string; snapMin: number } | null>(null)
-
-  // --- Resize state ---
-  const [resize, setResize] = useState<ResizeState | null>(null)
-  const resizeRef = useRef<ResizeState | null>(null)
+  const [interaction, setInteraction] = useState<Interaction | null>(null)
+  const interRef = useRef<Interaction | null>(null)
 
   function pxPerMin(): number {
     if (!bodyRef.current) return (ROW_H * 16) / 60
     return bodyRef.current.offsetHeight / (HOURS.length * 60)
   }
 
-  function snapToQuarter(min: number): number {
+  function snap15(min: number) {
     return Math.round(min / 15) * 15
   }
 
-  function calcSnapMin(yInColumn: number): number {
-    const raw = HOURS[0] * 60 + yInColumn / pxPerMin() - dragOffsetMin
-    const clamped = Math.max(HOURS[0] * 60, Math.min(23 * 60, raw))
-    return snapToQuarter(clamped)
+  function getDayIdxFromX(mouseX: number): number {
+    if (!bodyRef.current) return 0
+    const rect = bodyRef.current.getBoundingClientRect()
+    const available = rect.width - GUTTER_PX
+    const colWidth = available / 7
+    const x = mouseX - rect.left - GUTTER_PX
+    return Math.max(0, Math.min(6, Math.floor(x / colWidth)))
   }
 
-  // Drag-to-move handlers
-  function handleDragStart(e: React.DragEvent, task: Task) {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    const offsetPx = e.clientY - rect.top
-    setDragTaskId(task.id)
-    setDragOffsetMin(Math.round(offsetPx / pxPerMin()))
-    e.dataTransfer.effectAllowed = 'move'
+  function getMinFromY(mouseY: number): number {
+    if (!bodyRef.current) return HOURS[0] * 60
+    const rect = bodyRef.current.getBoundingClientRect()
+    const y = mouseY - rect.top
+    const raw = HOURS[0] * 60 + y / pxPerMin()
+    return Math.max(HOURS[0] * 60, Math.min(23 * 60, raw))
   }
 
-  function handleDragOver(e: React.DragEvent, dateStr: string) {
+  // Mouse-down on card body → start move interaction
+  function handleMoveStart(e: React.MouseEvent, task: Task) {
+    if (e.button !== 0) return
     e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    setDropInfo({ dateStr, snapMin: calcSnapMin(e.clientY - rect.top) })
-  }
-
-  function handleDragLeave(e: React.DragEvent) {
-    if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
-      setDropInfo(null)
+    e.stopPropagation()
+    const start = new Date(task.start_time)
+    const taskTopMin = start.getHours() * 60 + start.getMinutes()
+    const offsetMin = (e.clientY - (bodyRef.current?.getBoundingClientRect().top ?? 0)) / pxPerMin() - (taskTopMin - HOURS[0] * 60)
+    const dayIdx = getDayIdxFromX(e.clientX)
+    const state: Interaction = {
+      kind: 'move',
+      task,
+      offsetMin: Math.max(0, offsetMin),
+      startX: e.clientX,
+      startY: e.clientY,
+      moved: false,
+      previewDayIdx: dayIdx,
+      previewMin: taskTopMin,
     }
+    interRef.current = state
+    setInteraction(state)
   }
 
-  function handleDrop(e: React.DragEvent, day: Date) {
-    e.preventDefault()
-    if (!dragTaskId || !onTaskMove) { resetDrag(); return }
-
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    const snapMin = calcSnapMin(e.clientY - rect.top)
-
-    const newStart = new Date(day)
-    newStart.setHours(Math.floor(snapMin / 60), snapMin % 60, 0, 0)
-    onTaskMove(dragTaskId, newStart)
-    resetDrag()
-  }
-
-  function resetDrag() {
-    setDragTaskId(null)
-    setDropInfo(null)
-  }
-
-  // Resize handlers (mouse-based)
-  function handleResizeStart(e: React.MouseEvent, task: Task, type: ResizeType) {
+  // Mouse-down on resize handle
+  function handleResizeStart(e: React.MouseEvent, task: Task, dir: 'top' | 'bottom') {
+    if (e.button !== 0) return
     e.preventDefault()
     e.stopPropagation()
     const start = new Date(task.start_time)
     const duration = task.duration_minutes ?? 60
-    const state: ResizeState = {
-      taskId: task.id,
-      type,
-      originalStart: start,
-      originalDuration: duration,
+    const state: Interaction = {
+      kind: 'resize',
+      task,
+      dir,
+      origStart: start,
+      origDuration: duration,
+      moved: false,
       previewStart: start,
       previewDuration: duration,
     }
-    resizeRef.current = state
-    setResize(state)
+    interRef.current = state
+    setInteraction(state)
   }
 
   useEffect(() => {
     function onMouseMove(e: MouseEvent) {
-      if (!resizeRef.current || !bodyRef.current) return
-      const { type, originalStart, originalDuration } = resizeRef.current
+      const cur = interRef.current
+      if (!cur) return
 
-      // Find which column (day) we're in — use the body bounding rect for y
-      const bodyRect = bodyRef.current.getBoundingClientRect()
-      const yInBody = e.clientY - bodyRect.top
-      const minutesFromTop = yInBody / pxPerMin()
-      const absoluteMin = HOURS[0] * 60 + minutesFromTop
+      if (cur.kind === 'move') {
+        const dx = Math.abs(e.clientX - cur.startX)
+        const dy = Math.abs(e.clientY - cur.startY)
+        const moved = cur.moved || dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD
 
-      if (type === 'bottom') {
-        // Keep start fixed, change duration
-        const endMin = snapToQuarter(Math.max(absoluteMin, HOURS[0] * 60 + 15))
-        const origStartMin = originalStart.getHours() * 60 + originalStart.getMinutes()
-        const newDuration = Math.max(15, endMin - origStartMin)
-        const next = { ...resizeRef.current, previewDuration: newDuration }
-        resizeRef.current = next
-        setResize(next)
+        const dayIdx = getDayIdxFromX(e.clientX)
+        const rawMin = getMinFromY(e.clientY) - cur.offsetMin
+        const previewMin = snap15(Math.max(HOURS[0] * 60, Math.min(23 * 60 - 15, rawMin)))
+
+        const next: Interaction = { ...cur, moved, previewDayIdx: dayIdx, previewMin }
+        interRef.current = next
+        setInteraction(next)
       } else {
-        // Keep end fixed, change start
-        const origEndMin = originalStart.getHours() * 60 + originalStart.getMinutes() + originalDuration
-        const newStartMin = snapToQuarter(Math.min(absoluteMin, origEndMin - 15))
-        const clampedStartMin = Math.max(HOURS[0] * 60, newStartMin)
-        const newDuration = origEndMin - clampedStartMin
-        const newStart = new Date(originalStart)
-        newStart.setHours(Math.floor(clampedStartMin / 60), clampedStartMin % 60, 0, 0)
-        const next = { ...resizeRef.current, previewStart: newStart, previewDuration: newDuration }
-        resizeRef.current = next
-        setResize(next)
+        // resize
+        const absoluteMin = getMinFromY(e.clientY)
+
+        let previewStart = cur.origStart
+        let previewDuration = cur.origDuration
+
+        if (cur.dir === 'bottom') {
+          const origStartMin = cur.origStart.getHours() * 60 + cur.origStart.getMinutes()
+          const endMin = snap15(Math.max(origStartMin + 15, absoluteMin))
+          previewDuration = endMin - origStartMin
+        } else {
+          const origEndMin = cur.origStart.getHours() * 60 + cur.origStart.getMinutes() + cur.origDuration
+          const newStartMin = snap15(Math.min(origEndMin - 15, absoluteMin))
+          const clamped = Math.max(HOURS[0] * 60, newStartMin)
+          previewDuration = origEndMin - clamped
+          previewStart = new Date(cur.origStart)
+          previewStart.setHours(Math.floor(clamped / 60), clamped % 60, 0, 0)
+        }
+
+        const moved = cur.moved || previewDuration !== cur.origDuration || previewStart.getTime() !== cur.origStart.getTime()
+        const next: Interaction = { ...cur, moved, previewStart, previewDuration }
+        interRef.current = next
+        setInteraction(next)
       }
     }
 
     function onMouseUp() {
-      if (!resizeRef.current || !onTaskResize) {
-        resizeRef.current = null
-        setResize(null)
-        return
+      const cur = interRef.current
+      if (!cur) return
+
+      if (cur.kind === 'move') {
+        if (cur.moved && onTaskMove) {
+          const newStart = new Date(days[cur.previewDayIdx])
+          newStart.setHours(Math.floor(cur.previewMin / 60), cur.previewMin % 60, 0, 0)
+          onTaskMove(cur.task.id, newStart)
+        } else if (!cur.moved) {
+          onTaskClick(cur.task)
+        }
+      } else {
+        if (cur.moved && onTaskResize) {
+          onTaskResize(cur.task.id, cur.previewStart, cur.previewDuration)
+        }
       }
-      const { taskId, previewStart, previewDuration } = resizeRef.current
-      onTaskResize(taskId, previewStart, previewDuration)
-      resizeRef.current = null
-      setResize(null)
+
+      interRef.current = null
+      setInteraction(null)
     }
 
     document.addEventListener('mousemove', onMouseMove)
@@ -191,12 +209,18 @@ export default function WeekView({
       document.removeEventListener('mousemove', onMouseMove)
       document.removeEventListener('mouseup', onMouseUp)
     }
-  }, [onTaskResize])
+  }, [days, onTaskMove, onTaskResize, onTaskClick])
 
   const totalH = HOURS.length * ROW_H
 
+  // For move preview: which day column shows indicator
+  const movePreview = interaction?.kind === 'move' && interaction.moved ? interaction : null
+  const moveDateStr = movePreview ? days[movePreview.previewDayIdx]?.toISOString().split('T')[0] : null
+
+  const isAnyInteraction = interaction !== null
+
   return (
-    <div className="flex-1 overflow-auto">
+    <div className="flex-1 overflow-auto" style={{ userSelect: isAnyInteraction ? 'none' : undefined }}>
       <div className="min-w-[600px]">
         {/* Sticky header */}
         <div className="sticky top-0 z-10 flex bg-ink border-b border-ink-border">
@@ -232,18 +256,15 @@ export default function WeekView({
           </div>
 
           {/* Day columns */}
-          {days.map(day => {
+          {days.map((day) => {
             const dateStr = day.toISOString().split('T')[0]
             const dayTasks = tasksByDay.get(dateStr) ?? []
-            const indicator = dropInfo?.dateStr === dateStr ? dropInfo.snapMin : null
+            const showMoveIndicator = moveDateStr === dateStr
 
             return (
               <div
                 key={dateStr}
                 className="flex-1 relative border-l border-ink-border"
-                onDragOver={e => handleDragOver(e, dateStr)}
-                onDragLeave={handleDragLeave}
-                onDrop={e => handleDrop(e, day)}
               >
                 {/* Hour grid lines */}
                 {HOURS.map(hour => (
@@ -254,11 +275,11 @@ export default function WeekView({
                   />
                 ))}
 
-                {/* Drop indicator */}
-                {indicator !== null && (
+                {/* Move preview indicator */}
+                {showMoveIndicator && movePreview && (
                   <div
                     className="absolute left-0 right-0 z-20 pointer-events-none"
-                    style={{ top: `${(indicator - HOURS[0] * 60) / 60 * ROW_H}rem` }}
+                    style={{ top: `${(movePreview.previewMin - HOURS[0] * 60) / 60 * ROW_H}rem` }}
                   >
                     <div className="h-0.5 bg-gold w-full" />
                     <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-gold" />
@@ -267,39 +288,47 @@ export default function WeekView({
 
                 {/* Tasks */}
                 {dayTasks.map(task => {
-                  const isResizing = resize?.taskId === task.id
-                  const displayStart = isResizing ? resize!.previewStart : new Date(task.start_time)
-                  const displayDuration = isResizing ? resize!.previewDuration : (task.duration_minutes ?? 60)
+                  const isMoved = interaction?.kind === 'move' && interaction.task.id === task.id && interaction.moved
+                  const isResizing = interaction?.kind === 'resize' && interaction.task.id === task.id
+
+                  let displayStart = new Date(task.start_time)
+                  let displayDuration = task.duration_minutes ?? 60
+
+                  if (isResizing && interaction.kind === 'resize') {
+                    displayStart = interaction.previewStart
+                    displayDuration = interaction.previewDuration
+                  }
 
                   const top = ((displayStart.getHours() - HOURS[0]) * 60 + displayStart.getMinutes()) / 60 * ROW_H
                   const height = Math.max(displayDuration / 60 * ROW_H, 0.75)
-                  const color = task.color ?? getCategoryColor(task.category_id)
-                  const isDragging = dragTaskId === task.id
+                  const color = task.color ?? '#57535e'
 
                   return (
                     <div
                       key={task.id}
-                      draggable={!resize}
-                      onDragStart={e => handleDragStart(e, task)}
-                      onDragEnd={resetDrag}
-                      onClick={() => !resize && onTaskClick(task)}
-                      className={`absolute left-0.5 right-0.5 rounded overflow-hidden z-10 transition-opacity select-none ${
-                        isDragging ? 'opacity-30' : 'opacity-100 hover:opacity-80'
-                      } ${resize ? 'cursor-ns-resize' : 'cursor-grab active:cursor-grabbing'}`}
+                      className={`absolute left-0.5 right-0.5 rounded overflow-hidden z-10 select-none ${
+                        isMoved ? 'opacity-30' : 'opacity-100'
+                      }`}
                       style={{
                         top: `${top}rem`,
                         height: `${height}rem`,
                         backgroundColor: color + '4D',
                         borderLeft: `2px solid ${color}`,
+                        cursor: isAnyInteraction ? (interaction?.kind === 'resize' ? 'ns-resize' : 'grabbing') : 'grab',
                       }}
                     >
                       {/* Top resize handle */}
                       <div
-                        className="absolute top-0 left-0 right-0 h-1.5 cursor-ns-resize z-20"
+                        className="absolute top-0 left-0 right-0 h-3 z-20"
+                        style={{ cursor: 'ns-resize' }}
                         onMouseDown={e => handleResizeStart(e, task, 'top')}
                       />
 
-                      <div className="px-1.5 py-1 h-full">
+                      {/* Card body — drag to move */}
+                      <div
+                        className="absolute inset-0 top-3 bottom-3 px-1.5 py-1"
+                        onMouseDown={e => handleMoveStart(e, task)}
+                      >
                         <div className="text-xs text-cream truncate leading-tight">{task.title}</div>
                         {height >= 1.5 && (
                           <div className="text-xs text-cream-faint leading-tight">
@@ -311,16 +340,17 @@ export default function WeekView({
 
                       {/* Bottom resize handle */}
                       <div
-                        className="absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize z-20"
+                        className="absolute bottom-0 left-0 right-0 h-3 z-20"
+                        style={{ cursor: 'ns-resize' }}
                         onMouseDown={e => handleResizeStart(e, task, 'bottom')}
                       />
                     </div>
                   )
                 })}
 
-                {/* Empty slot click (behind tasks) */}
+                {/* Empty slot click */}
                 <button
-                  onClick={() => onEmptySlotClick(day)}
+                  onClick={() => !isAnyInteraction && onEmptySlotClick(day)}
                   className="absolute inset-0 w-full h-full"
                   tabIndex={-1}
                 />
