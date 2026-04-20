@@ -47,6 +47,9 @@ export default function CalendarPage() {
   async function handleTaskMove(taskId: string, newStart: Date) {
     const task = tasks.find(t => t.id === taskId)
     if (!task) return
+    setTasks(prev => prev.map(t =>
+      t.id === taskId ? { ...t, start_time: newStart.toISOString() } : t
+    ))
     try {
       await updateTask(taskId, {
         title: task.title,
@@ -57,13 +60,16 @@ export default function CalendarPage() {
       })
       setTasks(await listTasks())
     } catch {
-      // task stays in place on error
+      setTasks(await listTasks())
     }
   }
 
   async function handleTaskResize(taskId: string, newStart: Date, durationMinutes: number) {
     const task = tasks.find(t => t.id === taskId)
     if (!task) return
+    setTasks(prev => prev.map(t =>
+      t.id === taskId ? { ...t, start_time: newStart.toISOString(), duration_minutes: durationMinutes } : t
+    ))
     try {
       await updateTask(taskId, {
         title: task.title,
@@ -74,7 +80,7 @@ export default function CalendarPage() {
       })
       setTasks(await listTasks())
     } catch {
-      // task stays in place on error
+      setTasks(await listTasks())
     }
   }
 
