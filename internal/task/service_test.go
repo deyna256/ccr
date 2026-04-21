@@ -90,6 +90,8 @@ func TestService_UpdateStatus_done(t *testing.T) {
 	}
 	if gotCompletedAt == nil {
 		t.Error("expected completedAt to be set")
+	} else if time.Since(*gotCompletedAt) > 5*time.Second {
+		t.Errorf("expected completedAt to be recent, got %v", *gotCompletedAt)
 	}
 	if result.Status != "done" {
 		t.Errorf("expected status=done, got %q", result.Status)
@@ -160,5 +162,110 @@ func TestService_Create_emptyTitle(t *testing.T) {
 	}
 	if !errors.Is(err, task.ErrInvalid) {
 		t.Errorf("expected ErrInvalid, got %v", err)
+	}
+}
+
+func TestService_Update_validData(t *testing.T) {
+	existingTask := task.Task{
+		ID:     "task1",
+		UserID: "user1",
+		Type:   "task",
+		Title:  "old title",
+		Status: "pending",
+	}
+	store := &stubStorage{
+		getByID: func(_ context.Context, id, userID string) (task.Task, error) {
+			return existingTask, nil
+		},
+		update: func(_ context.Context, t task.Task) (task.Task, error) {
+			return t, nil
+		},
+	}
+	svc := task.NewService(store, t.TempDir(), newTestLogger())
+
+	updated, err := svc.Update(context.Background(), "task1", "user1", task.WriteRequest{Title: "new title"})
+	if err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
+	if updated.Title != "new title" {
+		t.Errorf("title = %q, want %q", updated.Title, "new title")
+	}
+}
+
+func TestService_Delete_success(t *testing.T) {
+	store := &stubStorage{
+		getByID: func(_ context.Context, id, userID string) (task.Task, error) {
+			return task.Task{ID: id, UserID: userID}, nil
+		},
+		delete: func(_ context.Context, id, userID string) error {
+			return nil
+		},
+	}
+	svc := task.NewService(store, t.TempDir(), newTestLogger())
+
+	err := svc.Delete(context.Background(), "task1", "user1")
+	if err != nil {
+		t.Fatalf("Delete failed: %v", err)
+	}
+}
+
+func TestService_Delete_notFound(t *testing.T) {
+	store := &stubStorage{
+		getByID: func(_ context.Context, id, userID string) (task.Task, error) {
+			return task.Task{}, task.ErrNotFound
+		},
+		delete: func(_ context.Context, id, userID string) error {
+			return task.ErrNotFound
+		},
+	}
+	svc := task.NewService(store, t.TempDir(), newTestLogger())
+
+	err := svc.Delete(context.Background(), "task1", "user1")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !errors.Is(err, task.ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestService_List_withStatus(t *testing.T) {
+	status := "done"
+	store := &stubStorage{
+		list: func(_ context.Context, userID string, f task.ListFilter) ([]task.Task, error) {
+			if f.Status != nil && *f.Status == status {
+				return []task.Task{{ID: "task1", Status: status}}, nil
+			}
+			return nil, nil
+		},
+	}
+	svc := task.NewService(store, t.TempDir(), newTestLogger())
+
+	tasks, err := svc.List(context.Background(), "user1", task.ListFilter{Status: &status})
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(tasks))
+	}
+	if tasks[0].Status != "done" {
+		t.Errorf("status = %q, want %q", tasks[0].Status, "done")
+	}
+}
+
+func TestService_UploadAttachment_taskNotFound(t *testing.T) {
+	store := &stubStorage{
+		getByID: func(_ context.Context, id, userID string) (task.Task, error) {
+			return task.Task{}, task.ErrNotFound
+		},
+	}
+	svc := task.NewService(store, t.TempDir(), newTestLogger())
+
+	_, err := svc.UploadAttachment(context.Background(), "task1", "user1", "file.txt", "text/plain", 0, nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !errors.Is(err, task.ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 }

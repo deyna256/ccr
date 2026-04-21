@@ -3,10 +3,12 @@ package auth_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/task-planner/server/internal/auth"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type stubStorage struct {
@@ -38,7 +40,7 @@ func (s *stubStorage) RevokeRefreshToken(ctx context.Context, token string) erro
 }
 
 func newTestService(st auth.Storage) *auth.Service {
-	return auth.NewService(st, "test-secret", "test-refresh-secret")
+	return auth.NewService(st, "test-secret", "test-refresh-secret", slog.Default())
 }
 
 func TestService_Register_hashesPassword(t *testing.T) {
@@ -59,6 +61,9 @@ func TestService_Register_hashesPassword(t *testing.T) {
 	}
 	if storedHash == "" {
 		t.Error("stored hash must not be empty")
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(storedHash), []byte("secret")); err != nil {
+		t.Errorf("stored hash does not verify with original password: %v", err)
 	}
 }
 
@@ -123,7 +128,7 @@ func TestValidateAccessToken_wrongSecret(t *testing.T) {
 		createUser: func(_ context.Context, _, _ string) (auth.User, error) {
 			return auth.User{ID: "u1"}, nil
 		},
-	}, "secret-a", "refresh-secret")
+	}, "secret-a", "refresh-secret", slog.Default())
 
 	resp, err := svc.Register(context.Background(), auth.RegisterRequest{Email: "a@b.com", Password: "pass"})
 	if err != nil {
