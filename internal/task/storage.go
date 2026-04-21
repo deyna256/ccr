@@ -34,7 +34,6 @@ func scanTask(row interface {
 	Scan(dest ...any) error
 }) (Task, error) {
 	var t Task
-	var categoryID sql.NullString
 	var description sql.NullString
 	var startTime sql.NullTime
 	var endTime sql.NullTime
@@ -45,7 +44,6 @@ func scanTask(row interface {
 	err := row.Scan(
 		&t.ID,
 		&t.UserID,
-		&categoryID,
 		&t.Type,
 		&t.Title,
 		&description,
@@ -62,9 +60,6 @@ func scanTask(row interface {
 		return Task{}, err
 	}
 
-	if categoryID.Valid {
-		t.CategoryID = &categoryID.String
-	}
 	if description.Valid {
 		t.Description = &description.String
 	}
@@ -91,7 +86,7 @@ func scanTask(row interface {
 	return t, nil
 }
 
-const taskColumns = `id, user_id, category_id, type, title, description, start_time, end_time,
+const taskColumns = `id, user_id, type, title, description, start_time, end_time,
 	status, color, completed_at, archived_at, created_at, updated_at`
 
 func (s *PostgresStorage) List(ctx context.Context, userID string, f ListFilter) ([]Task, error) {

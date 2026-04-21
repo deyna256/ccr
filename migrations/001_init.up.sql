@@ -6,19 +6,9 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS categories (
-    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id    UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name       VARCHAR(255) NOT NULL,
-    color      VARCHAR(7)   NOT NULL DEFAULT '#3B82F6',
-    created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-);
-
 CREATE TABLE IF NOT EXISTS tasks (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id         UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    category_id     UUID         REFERENCES categories(id) ON DELETE SET NULL,
     type            VARCHAR(10)  NOT NULL DEFAULT 'task' CHECK (type IN ('task', 'event')),
     title           VARCHAR(255) NOT NULL,
     description     TEXT,
@@ -54,5 +44,4 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_tasks_user_time   ON tasks(user_id, start_time);
 CREATE INDEX IF NOT EXISTS idx_tasks_user_status ON tasks(user_id, status);
-CREATE INDEX IF NOT EXISTS idx_categories_user   ON categories(user_id);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens    ON refresh_tokens(token);
