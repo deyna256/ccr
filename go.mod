@@ -1,6 +1,6 @@
 module github.com/task-planner/server
 
-go 1.25.0
+go 1.26.1
 
 require (
 	github.com/go-chi/chi/v5 v5.0.12
@@ -8,6 +8,7 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.17.0
 	github.com/lib/pq v1.10.9
 	github.com/rs/xid v1.6.0
+	github.com/tfcp-site/httpx v0.2.1-0.20260421220903-ee2f3673c6fb
 	golang.org/x/crypto v0.49.0
 )
 

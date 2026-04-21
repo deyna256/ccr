@@ -16,8 +16,8 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "github.com/lib/pq"
 
-	"github.com/task-planner/server/internal/correlation"
-	"github.com/task-planner/server/internal/logging"
+	"github.com/tfcp-site/httpx/correlation"
+	"github.com/tfcp-site/httpx/logging"
 	"github.com/task-planner/server/migrations"
 )
 

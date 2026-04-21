@@ -5,25 +5,31 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/task-planner/server/internal/auth"
-	"github.com/task-planner/server/internal/correlation"
-	"github.com/task-planner/server/internal/httplog"
+	"github.com/tfcp-site/httpx/correlation"
+	"github.com/tfcp-site/httpx/httplog"
+	"github.com/task-planner/server/internal/sync"
 	"github.com/task-planner/server/internal/task"
 	"github.com/task-planner/server/ui"
 )
 
 func newServer(cfg Config, db *sql.DB, log *slog.Logger) *http.Server {
 	authStorage := auth.NewPostgresStorage(db)
-	authService := auth.NewService(authStorage, cfg.JWTSecret, cfg.JWTRefreshSecret)
+	authService := auth.NewService(authStorage, cfg.JWTSecret, cfg.JWTRefreshSecret, log)
 	authHandler := auth.NewHandler(authService, log)
 
-	taskStorage := task.NewPostgresStorage(db)
+	taskStorage := task.NewPostgresStorage(db, log)
 	taskService := task.NewService(taskStorage, cfg.FileStoragePath, log)
 	taskHandler := task.NewHandler(taskService, log)
+
+	syncStorage := sync.NewPostgresStorage(db)
+	syncService := sync.NewService(syncStorage, log)
+	syncHandler := sync.NewHandler(syncService, log)
 
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RealIP)
@@ -32,13 +38,18 @@ func newServer(cfg Config, db *sql.DB, log *slog.Logger) *http.Server {
 	r.Route("/api", func(r chi.Router) {
 		r.Mount("/auth", authHandler.Routes())
 		r.Group(func(r chi.Router) {
-			r.Use(auth.Middleware(cfg.JWTSecret))
+			r.Use(auth.Middleware(cfg.JWTSecret, log))
 			r.Mount("/tasks", taskHandler.Routes())
 			r.Get("/attachments/{id}/file", taskHandler.ServeFile)
+			r.Mount("/sync", syncHandler.Routes())
 		})
 	})
 
-	distFS, _ := fs.Sub(ui.FS, "dist")
+	distFS, err := fs.Sub(ui.FS, "dist")
+	if err != nil {
+		log.Error("ui dist not found", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 	r.Handle("/*", spaHandler(distFS))
 
 	handler := correlation.Middleware(httplog.Middleware(log)(r))
