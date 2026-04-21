@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -27,17 +28,20 @@ type Service struct {
 	storage          Storage
 	jwtSecret        []byte
 	jwtRefreshSecret []byte
+	log              *slog.Logger
 }
 
-func NewService(storage Storage, jwtSecret, jwtRefreshSecret string) *Service {
+func NewService(storage Storage, jwtSecret, jwtRefreshSecret string, log *slog.Logger) *Service {
 	return &Service{
 		storage:          storage,
 		jwtSecret:        []byte(jwtSecret),
 		jwtRefreshSecret: []byte(jwtRefreshSecret),
+		log:              log,
 	}
 }
 
 func (s *Service) Register(ctx context.Context, req RegisterRequest) (AuthResponse, error) {
+	s.log.InfoContext(ctx, "registering user", slog.String("email", req.Email))
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcryptCost)
 	if err != nil {
 		return AuthResponse{}, fmt.Errorf("auth.service.Register: %w", err)
@@ -54,6 +58,7 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (AuthRespon
 }
 
 func (s *Service) Login(ctx context.Context, req LoginRequest) (AuthResponse, error) {
+	s.log.InfoContext(ctx, "user login", slog.String("email", req.Email))
 	user, err := s.storage.GetUserByEmail(ctx, req.Email)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -79,6 +84,7 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 }
 
 func (s *Service) Refresh(ctx context.Context, refreshToken string) (AuthResponse, error) {
+	s.log.InfoContext(ctx, "refreshing token")
 	rt, err := s.storage.GetRefreshToken(ctx, refreshToken)
 	if err != nil {
 		return AuthResponse{}, fmt.Errorf("auth.service.Refresh: %w", err)

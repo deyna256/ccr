@@ -40,6 +40,7 @@ func (s *Service) GetByID(ctx context.Context, id, userID string) (Task, error) 
 }
 
 func (s *Service) Create(ctx context.Context, userID string, req WriteRequest) (Task, error) {
+	s.log.InfoContext(ctx, "creating task")
 	if req.Title == "" {
 		return Task{}, fmt.Errorf("task.service.Create: %w", ErrInvalid)
 	}
@@ -62,10 +63,12 @@ func (s *Service) Create(ctx context.Context, userID string, req WriteRequest) (
 	if err != nil {
 		return Task{}, fmt.Errorf("task.service.Create: %w", err)
 	}
+	s.log.InfoContext(ctx, "task created", slog.String("task_id", created.ID))
 	return created, nil
 }
 
 func (s *Service) Update(ctx context.Context, id, userID string, req WriteRequest) (Task, error) {
+	s.log.InfoContext(ctx, "updating task", slog.String("task_id", id))
 	if req.Title == "" {
 		return Task{}, fmt.Errorf("task.service.Update: %w", ErrInvalid)
 	}
@@ -92,6 +95,7 @@ func (s *Service) Update(ctx context.Context, id, userID string, req WriteReques
 }
 
 func (s *Service) UpdateStatus(ctx context.Context, id, userID, status string) (Task, error) {
+	s.log.InfoContext(ctx, "updating task status", slog.String("task_id", id), slog.String("status", status))
 	var completedAt, archivedAt *time.Time
 	now := time.Now()
 	switch status {
@@ -100,7 +104,6 @@ func (s *Service) UpdateStatus(ctx context.Context, id, userID, status string) (
 	case "archived":
 		archivedAt = &now
 	case "pending":
-		// both nil
 	default:
 		return Task{}, fmt.Errorf("task.service.UpdateStatus: %w", ErrInvalid)
 	}
@@ -112,6 +115,7 @@ func (s *Service) UpdateStatus(ctx context.Context, id, userID, status string) (
 }
 
 func (s *Service) Delete(ctx context.Context, id, userID string) error {
+	s.log.InfoContext(ctx, "deleting task", slog.String("task_id", id))
 	if err := s.storage.Delete(ctx, id, userID); err != nil {
 		return fmt.Errorf("task.service.Delete: %w", err)
 	}
@@ -135,6 +139,7 @@ func (s *Service) GetAttachment(ctx context.Context, attachmentID, userID string
 }
 
 func (s *Service) UploadAttachment(ctx context.Context, taskID, userID, name, mimeType string, size int64, r io.Reader) (Attachment, error) {
+	s.log.InfoContext(ctx, "uploading attachment", slog.String("task_id", taskID), slog.String("filename", name))
 	if _, err := s.storage.GetByID(ctx, taskID, userID); err != nil {
 		return Attachment{}, fmt.Errorf("task.service.UploadAttachment: %w", err)
 	}
@@ -153,7 +158,10 @@ func (s *Service) UploadAttachment(ctx context.Context, taskID, userID, name, mi
 		_ = os.Remove(filePath)
 		return Attachment{}, fmt.Errorf("task.service.UploadAttachment: write file: %w", err)
 	}
-	_ = f.Close()
+	if err := f.Close(); err != nil {
+		_ = os.Remove(filePath)
+		return Attachment{}, fmt.Errorf("task.service.UploadAttachment: close file: %w", err)
+	}
 	a, err := s.storage.CreateAttachment(ctx, Attachment{
 		TaskID:   taskID,
 		Name:     name,
@@ -162,13 +170,16 @@ func (s *Service) UploadAttachment(ctx context.Context, taskID, userID, name, mi
 		MimeType: mimeType,
 	})
 	if err != nil {
-		_ = os.Remove(filePath)
+		if rmErr := os.Remove(filePath); rmErr != nil && !errors.Is(rmErr, os.ErrNotExist) {
+			s.log.WarnContext(ctx, "failed to remove file after storage error", slog.String("path", filePath), slog.String("error", rmErr.Error()))
+		}
 		return Attachment{}, fmt.Errorf("task.service.UploadAttachment: %w", err)
 	}
 	return a, nil
 }
 
 func (s *Service) DeleteAttachment(ctx context.Context, attachmentID, userID string) error {
+	s.log.InfoContext(ctx, "deleting attachment", slog.String("attachment_id", attachmentID))
 	a, err := s.storage.GetAttachment(ctx, attachmentID, userID)
 	if err != nil {
 		return fmt.Errorf("task.service.DeleteAttachment: %w", err)

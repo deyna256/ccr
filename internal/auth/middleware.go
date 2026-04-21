@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"strings"
 )
@@ -13,17 +14,19 @@ func UserIDFromContext(ctx context.Context) (string, bool) {
 	return id, ok
 }
 
-func Middleware(jwtSecret string) func(http.Handler) http.Handler {
+func Middleware(jwtSecret string, log *slog.Logger) func(http.Handler) http.Handler {
 	secret := []byte(jwtSecret)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			header := r.Header.Get("Authorization")
 			if !strings.HasPrefix(header, "Bearer ") {
+				log.WarnContext(r.Context(), "missing token", slog.String("error", "auth: bearer token absent"))
 				writeError(w, http.StatusUnauthorized, "missing token")
 				return
 			}
 			claims, err := ValidateAccessToken(secret, strings.TrimPrefix(header, "Bearer "))
 			if err != nil {
+				log.WarnContext(r.Context(), "invalid token", slog.String("error", err.Error()))
 				writeError(w, http.StatusUnauthorized, "invalid token")
 				return
 			}
