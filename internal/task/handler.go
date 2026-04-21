@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -45,6 +46,15 @@ func (h *Handler) ServeFile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.log.ErrorContext(r.Context(), "get attachment failed", slog.String("error", err.Error()))
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	if _, err := os.Stat(a.FilePath); err != nil {
+		if os.IsNotExist(err) {
+			writeError(w, http.StatusNotFound, "file not found")
+			return
+		}
+		h.log.ErrorContext(r.Context(), "file stat failed", slog.String("error", err.Error()))
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
