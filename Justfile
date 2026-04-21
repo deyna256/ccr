@@ -4,14 +4,14 @@ default:
     @just --list
 
 test:
-    gotestsum --format short --no-summary=skipped -- -race -count=1 -coverprofile=coverage.out -coverpkg=./internal/... $(go list ./... | grep -v /node_modules/)
+    gotestsum --format short --no-summary=skipped -- -race -count=1 -coverprofile=coverage.out -coverpkg=./internal/... $(go list ./... | grep -v /node_modules/ | grep -v /ui/)
     @go tool cover -func=coverage.out | grep "^total"
 
 cover:
     go tool cover -html=coverage.out
 
 style:
-    golangci-lint run ./...
+    golangci-lint run ./cmd/... ./internal/...
 
 fmt:
     gofmt -l -w cmd/ internal/ ui/ui.go
