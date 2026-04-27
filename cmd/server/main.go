@@ -16,14 +16,21 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "github.com/lib/pq"
 
-	"github.com/tfcp-site/httpx/correlation"
-	"github.com/tfcp-site/httpx/logging"
+	"github.com/task-planner/server/internal/admin"
 	"github.com/task-planner/server/migrations"
+	"github.com/tfcp-site/httpx/correlation"
+	"github.com/tfcp-site/httpx/httplog"
+	"github.com/tfcp-site/httpx/logging"
 )
 
 func main() {
-	cfg := configFromEnv()
-	log := logging.New("ccr", cfg.LogLevel, correlation.Extractor())
+	cfg, err := configFromEnv()
+	if err != nil {
+		os.Stderr.WriteString(err.Error() + "\n") //nolint:errcheck
+		os.Exit(1)
+	}
+
+	log := logging.New("ccr", parseLogLevel(cfg.LogLevel), correlation.Extractor())
 
 	db, err := openDB(cfg.DatabaseURL)
 	if err != nil {
@@ -37,27 +44,47 @@ func main() {
 		os.Exit(1)
 	}
 
-	srv := newServer(cfg, db, log)
+	apiSrv, err := newAPIServer(cfg, db, log)
+	if err != nil {
+		log.Error("failed to create API server", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
+	adminStorage := admin.NewAuthStorageAdapter(db, log)
+	adminHandler := admin.NewHandler(adminStorage, cfg.AdminSecret, log)
+	adminSrv := newAdminServer(cfg.AdminPort, adminHandler.Routes(), log)
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
-		log.Info("server started", slog.String("addr", cfg.Addr))
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("server error", slog.String("error", err.Error()))
+		log.Info("API server started", slog.String("addr", cfg.Addr))
+		if err := apiSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Error("API server error", slog.String("error", err.Error()))
 			os.Exit(1)
 		}
 	}()
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		log.Info("admin server started", slog.String("addr", cfg.AdminPort))
+		if err := adminSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Error("admin server error", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+	}()
+
 	<-quit
 
 	log.Info("shutting down")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
 
-	if err := srv.Shutdown(ctx); err != nil {
-		log.Error("shutdown error", slog.String("error", err.Error()))
+	if err := apiSrv.Shutdown(shutdownCtx); err != nil {
+		log.Error("API server shutdown error", slog.String("error", err.Error()))
+	}
+	if err := adminSrv.Shutdown(shutdownCtx); err != nil {
+		log.Error("admin server shutdown error", slog.String("error", err.Error()))
 	}
 
 	log.Info("server exited")
@@ -95,4 +122,28 @@ func runMigrations(db *sql.DB) error {
 		return err
 	}
 	return nil
+}
+
+func parseLogLevel(s string) slog.Level {
+	switch s {
+	case "debug":
+		return slog.LevelDebug
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}
+
+func newAdminServer(addr string, handler http.Handler, log *slog.Logger) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           correlation.Middleware(httplog.Middleware(log)(handler)),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
 }

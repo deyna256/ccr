@@ -2,29 +2,30 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/task-planner/server/internal/auth"
-	"github.com/tfcp-site/httpx/correlation"
-	"github.com/tfcp-site/httpx/httplog"
 	"github.com/task-planner/server/internal/sync"
 	"github.com/task-planner/server/internal/task"
 	"github.com/task-planner/server/ui"
+	"github.com/tfcp-site/httpx/correlation"
+	"github.com/tfcp-site/httpx/httplog"
 )
 
-func newServer(cfg Config, db *sql.DB, log *slog.Logger) *http.Server {
+func newAPIServer(cfg Config, db *sql.DB, log *slog.Logger) (*http.Server, error) {
 	authStorage := auth.NewPostgresStorage(db)
 	authService := auth.NewService(authStorage, cfg.JWTSecret, cfg.JWTRefreshSecret, log)
 	authHandler := auth.NewHandler(authService, log)
 
 	taskStorage := task.NewPostgresStorage(db, log)
-	taskService := task.NewService(taskStorage, cfg.FileStoragePath, log)
+	taskFileStorage := task.NewOsFileStorage(cfg.FileStoragePath)
+	taskService := task.NewService(taskStorage, taskFileStorage, log)
 	taskHandler := task.NewHandler(taskService, log)
 
 	syncStorage := sync.NewPostgresStorage(db)
@@ -47,8 +48,7 @@ func newServer(cfg Config, db *sql.DB, log *slog.Logger) *http.Server {
 
 	distFS, err := fs.Sub(ui.FS, "dist")
 	if err != nil {
-		log.Error("ui dist not found", slog.String("error", err.Error()))
-		os.Exit(1)
+		return nil, fmt.Errorf("ui dist not found: %w", err)
 	}
 	r.Handle("/*", spaHandler(distFS))
 
@@ -61,7 +61,7 @@ func newServer(cfg Config, db *sql.DB, log *slog.Logger) *http.Server {
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       120 * time.Second,
-	}
+	}, nil
 }
 
 func spaHandler(fsys fs.FS) http.Handler {
