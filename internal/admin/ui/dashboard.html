@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #0c0c0d;
+      color: #edeae2;
+      font-family: 'JetBrains Mono', Menlo, Consolas, monospace;
+      min-height: 100vh;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      border-bottom: 1px solid #2b2b2f;
+    }
+    .header h1 { font-size: 14px; font-weight: 600; }
+    .logout {
+      padding: 8px 16px;
+      background: transparent;
+      border: 1px solid #2b2b2f;
+      border-radius: 6px;
+      color: #8a8680;
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .logout:hover { border-color: #d95b5b; color: #d95b5b; }
+    .content { padding: 24px; }
+    .users-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .users-table th,
+    .users-table td {
+      text-align: left;
+      padding: 12px;
+      border-bottom: 1px solid #2b2b2f;
+      font-size: 13px;
+    }
+    .users-table th {
+      font-size: 11px;
+      color: #8a8680;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 500;
+    }
+    .users-table tr:hover td { background: #141416; }
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .badge-admin { background: rgba(77, 170, 116, 0.15); color: #4daa74; }
+    .badge-user { background: rgba(138, 134, 128, 0.15); color: #8a8680; }
+    .actions { display: flex; gap: 8px; }
+    .btn {
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s;
+      border: 1px solid;
+    }
+    .btn-admin {
+      background: transparent;
+      border-color: #4daa74;
+      color: #4daa74;
+    }
+    .btn-admin:hover { background: rgba(77, 170, 116, 0.1); }
+    .btn-remove {
+      background: transparent;
+      border-color: #d95b5b;
+      color: #d95b5b;
+    }
+    .btn-remove:hover { background: rgba(217, 91, 91, 0.1); }
+    .loading { color: #8a8680; font-size: 13px; }
+    .error { color: #d95b5b; font-size: 13px; margin-bottom: 16px; }
+    .email { color: #edeae2; }
+    .id { color: #8a8680; font-size: 11px; }
+    .task-count { color: #c4913a; }
+    .null { color: #8a8680; font-style: italic; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Admin Dashboard</h1>
+    <button class="logout" onclick="logout()">Logout</button>
+  </div>
+
+  <div class="content">
+    <div id="error" class="error" style="display:none;"></div>
+    <div id="loading" class="loading">Loading users...</div>
+    <table class="users-table" id="users-table" style="display:none;">
+      <thead>
+        <tr>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Registered</th>
+          <th>Last Login</th>
+          <th>Tasks</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="users-body"></tbody>
+    </table>
+  </div>
+
+  <script>
+    async function loadUsers() {
+      try {
+        const resp = await fetch('/api/users');
+        if (resp.status === 401) {
+          window.location.href = '/';
+          return;
+        }
+        if (!resp.ok) throw new Error('Failed to load users');
+
+        const data = await resp.json();
+        renderUsers(data.users);
+      } catch (err) {
+        document.getElementById('error').textContent = err.message;
+        document.getElementById('error').style.display = 'block';
+        document.getElementById('loading').style.display = 'none';
+      }
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '<span class="null">never</span>';
+      return new Date(dateStr).toLocaleDateString();
+    }
+
+    function renderUsers(users) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('users-table').style.display = 'table';
+
+      const tbody = document.getElementById('users-body');
+      tbody.innerHTML = users.map(user => `
+        <tr>
+          <td>
+            <div class="email">${escapeHtml(user.email)}</div>
+            <div class="id">${escapeHtml(user.id)}</div>
+          </td>
+          <td>
+            <span class="badge ${user.is_admin ? 'badge-admin' : 'badge-user'}">
+              ${user.is_admin ? 'admin' : 'user'}
+            </span>
+          </td>
+          <td>${formatDate(user.created_at)}</td>
+          <td>${formatDate(user.last_login)}</td>
+          <td class="task-count">${user.task_count}</td>
+          <td>
+            <div class="actions">
+              ${user.is_admin
+                ? `<button class="btn btn-remove" onclick="setAdmin('${user.id}', false)">Remove Admin</button>`
+                : `<button class="btn btn-admin" onclick="setAdmin('${user.id}', true)">Make Admin</button>`
+              }
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function setAdmin(userId, makeAdmin) {
+      const action = makeAdmin ? 'makeadmin' : 'unadmin';
+      try {
+        const resp = await fetch(`/api/users/${userId}/${action}`, { method: 'POST' });
+        if (resp.status === 401) {
+          window.location.href = '/';
+          return;
+        }
+        if (!resp.ok) throw new Error(`Failed to ${action}`);
+        loadUsers();
+      } catch (err) {
+        document.getElementById('error').textContent = err.message;
+        document.getElementById('error').style.display = 'block';
+      }
+    }
+
+    async function logout() {
+      try {
+        await fetch('/api/logout', { method: 'POST' });
+      } catch (e) {}
+      document.cookie = 'admin_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0';
+      window.location.href = '/';
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    loadUsers();
+  </script>
+</body>
+</html>
