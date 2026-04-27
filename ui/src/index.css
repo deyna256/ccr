@@ -16,6 +16,9 @@
 @layer components {
   .dot-grid { background-image: radial-gradient(circle, #2a2a2e 1px, transparent 1px); background-size: 26px 26px; }
   .input-field { @apply w-full bg-ink-surface border border-ink-border rounded px-3 py-2 text-sm text-cream placeholder:text-cream-faint focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/30 transition-colors; }
+  .input-field[type="number"]::-webkit-inner-spin-button,
+  .input-field[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .input-field[type="number"] { -moz-appearance: textfield; }
   .btn-primary { @apply bg-gold hover:bg-gold-light text-ink font-medium text-sm px-4 py-2 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed; }
   .btn-ghost { @apply border border-ink-border text-cream-dim hover:text-cream hover:border-cream-faint text-sm px-4 py-2 rounded transition-colors disabled:opacity-40; }
   .btn-danger { @apply border border-ember/30 text-ember hover:bg-ember/10 text-xs px-2.5 py-1 rounded transition-colors; }
