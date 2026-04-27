@@ -21,13 +21,13 @@ func Middleware(jwtSecret string, log *slog.Logger) func(http.Handler) http.Hand
 			header := r.Header.Get("Authorization")
 			if !strings.HasPrefix(header, "Bearer ") {
 				log.WarnContext(r.Context(), "missing token", slog.String("error", "auth: bearer token absent"))
-				writeError(w, http.StatusUnauthorized, "missing token")
+				http.Error(w, "missing token", http.StatusUnauthorized)
 				return
 			}
 			claims, err := ValidateAccessToken(secret, strings.TrimPrefix(header, "Bearer "))
 			if err != nil {
 				log.WarnContext(r.Context(), "invalid token", slog.String("error", err.Error()))
-				writeError(w, http.StatusUnauthorized, "invalid token")
+				http.Error(w, "invalid token", http.StatusUnauthorized)
 				return
 			}
 			next.ServeHTTP(w, r.WithContext(

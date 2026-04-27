@@ -6,17 +6,30 @@ import (
 )
 
 type User struct {
-	ID           string
-	Email        string
-	PasswordHash string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID           string     `json:"id"`
+	Email        string     `json:"email"`
+	PasswordHash string     `json:"-"`
+	IsAdmin      bool       `json:"is_admin"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"-"`
+	LastLogin    *time.Time `json:"last_login,omitempty"`
+}
+
+type UserStats struct {
+	ID        string     `json:"id"`
+	Email     string     `json:"email"`
+	IsAdmin   bool       `json:"is_admin"`
+	CreatedAt time.Time  `json:"created_at"`
+	LastLogin *time.Time `json:"last_login,omitempty"`
+	TaskCount int        `json:"task_count"`
 }
 
 type RefreshToken struct {
 	ID        string
 	UserID    string
 	Token     string
+	FamilyID  string
+	Sequence  int
 	ExpiresAt time.Time
 	RevokedAt *time.Time
 	CreatedAt time.Time

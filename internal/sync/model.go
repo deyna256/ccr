@@ -21,7 +21,6 @@ type SyncRequest struct {
 }
 
 type SyncResponse struct {
-	Status        string           `json:"status"`
 	ServerChanges []ChangeLogEntry `json:"server_changes"`
 	Accepted      []string         `json:"accepted"`
 	Rejected      []RejectedChange `json:"rejected"`
@@ -31,9 +30,4 @@ type RejectedChange struct {
 	ID         string                 `json:"id"`
 	Reason     string                 `json:"reason"`
 	ServerData map[string]interface{} `json:"server_data,omitempty"`
-}
-
-type PushResult struct {
-	Accepted []string         `json:"accepted"`
-	Rejected []RejectedChange `json:"rejected"`
 }

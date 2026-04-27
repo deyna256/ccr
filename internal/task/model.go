@@ -53,6 +53,7 @@ type StatusRequest struct {
 }
 
 var (
-	ErrNotFound = errors.New("not found")
-	ErrInvalid  = errors.New("invalid input")
+	ErrNotFound     = errors.New("not found")
+	ErrInvalid      = errors.New("invalid input")
+	ErrFileNotFound = errors.New("file not found")
 )

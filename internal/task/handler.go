@@ -1,6 +1,7 @@
 package task
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,8 +37,20 @@ func (h *Handler) Routes() http.Handler {
 	return r
 }
 
+func requireUserID(ctx context.Context, w http.ResponseWriter) (string, bool) {
+	userID, ok := auth.UserIDFromContext(ctx)
+	if !ok || userID == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return "", false
+	}
+	return userID, true
+}
+
 func (h *Handler) ServeFile(w http.ResponseWriter, r *http.Request) {
-	userID, _ := auth.UserIDFromContext(r.Context())
+	userID, ok := requireUserID(r.Context(), w)
+	if !ok {
+		return
+	}
 	id := chi.URLParam(r, "id")
 	a, err := h.service.GetAttachment(r.Context(), id, userID)
 	if err != nil {
@@ -64,7 +77,10 @@ func (h *Handler) ServeFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
-	userID, _ := auth.UserIDFromContext(r.Context())
+	userID, ok := requireUserID(r.Context(), w)
+	if !ok {
+		return
+	}
 	var f ListFilter
 	if fromStr := r.URL.Query().Get("from"); fromStr != "" {
 		t, err := time.Parse(time.RFC3339, fromStr)
@@ -98,7 +114,10 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
-	userID, _ := auth.UserIDFromContext(r.Context())
+	userID, ok := requireUserID(r.Context(), w)
+	if !ok {
+		return
+	}
 	var req WriteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -118,7 +137,10 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getByID(w http.ResponseWriter, r *http.Request) {
-	userID, _ := auth.UserIDFromContext(r.Context())
+	userID, ok := requireUserID(r.Context(), w)
+	if !ok {
+		return
+	}
 	id := chi.URLParam(r, "id")
 	t, err := h.service.GetByID(r.Context(), id, userID)
 	if err != nil {
@@ -134,7 +156,10 @@ func (h *Handler) getByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
-	userID, _ := auth.UserIDFromContext(r.Context())
+	userID, ok := requireUserID(r.Context(), w)
+	if !ok {
+		return
+	}
 	id := chi.URLParam(r, "id")
 	var req WriteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -159,7 +184,10 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
-	userID, _ := auth.UserIDFromContext(r.Context())
+	userID, ok := requireUserID(r.Context(), w)
+	if !ok {
+		return
+	}
 	id := chi.URLParam(r, "id")
 	if err := h.service.Delete(r.Context(), id, userID); err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -174,7 +202,10 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) updateStatus(w http.ResponseWriter, r *http.Request) {
-	userID, _ := auth.UserIDFromContext(r.Context())
+	userID, ok := requireUserID(r.Context(), w)
+	if !ok {
+		return
+	}
 	id := chi.URLParam(r, "id")
 	var req StatusRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -199,7 +230,10 @@ func (h *Handler) updateStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listAttachments(w http.ResponseWriter, r *http.Request) {
-	userID, _ := auth.UserIDFromContext(r.Context())
+	userID, ok := requireUserID(r.Context(), w)
+	if !ok {
+		return
+	}
 	taskID := chi.URLParam(r, "id")
 	atts, err := h.service.ListAttachments(r.Context(), taskID, userID)
 	if err != nil {
@@ -218,7 +252,10 @@ func (h *Handler) listAttachments(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) uploadAttachment(w http.ResponseWriter, r *http.Request) {
-	userID, _ := auth.UserIDFromContext(r.Context())
+	userID, ok := requireUserID(r.Context(), w)
+	if !ok {
+		return
+	}
 	taskID := chi.URLParam(r, "id")
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid multipart form")
@@ -250,7 +287,10 @@ func (h *Handler) uploadAttachment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) deleteAttachment(w http.ResponseWriter, r *http.Request) {
-	userID, _ := auth.UserIDFromContext(r.Context())
+	userID, ok := requireUserID(r.Context(), w)
+	if !ok {
+		return
+	}
 	aid := chi.URLParam(r, "aid")
 	if err := h.service.DeleteAttachment(r.Context(), aid, userID); err != nil {
 		if errors.Is(err, ErrNotFound) {
