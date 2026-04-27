@@ -6,7 +6,7 @@
 |----------------|--------------------------------|
 | users          | User accounts                  |
 | categories     | Task categories with colors    |
-| tasks          | Tasks and events               |
+| tasks          | Tasks               |
 | attachments    | Task file / link attachments   |
 | refresh_tokens | JWT refresh tokens             |
 

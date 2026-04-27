@@ -27,7 +27,7 @@ ui-test:
     cd ui && npm test
 
 up:
-    docker-compose up --build
+    docker-compose up -d --build --wait
 
 down:
     docker-compose down

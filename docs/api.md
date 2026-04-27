@@ -33,7 +33,7 @@ Format: `application/json` unless noted
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/tasks` | List tasks (see filters below) |
-| POST | `/tasks` | Create task or event |
+| POST | `/tasks` | Create task |
 | GET | `/tasks/{id}` | Get single task |
 | PUT | `/tasks/{id}` | Update task |
 | DELETE | `/tasks/{id}` | Delete task (deletes full series if recurring) |
@@ -45,7 +45,6 @@ Format: `application/json` unless noted
 |-------|------|-------------|
 | `from` | date | Range start (inclusive) |
 | `to` | date | Range end (inclusive) |
-| `type` | `task\|event` | Filter by type |
 | `status` | `pending\|done\|archived` | Filter by status |
 | `category_id` | UUID | Filter by category |
 

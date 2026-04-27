@@ -7,7 +7,7 @@
 | FR-1  | Week view — current week as the primary view                             |
 | FR-2  | Week navigation — scroll forward / backward                              |
 | FR-3  | Month view as secondary with navigation                                  |
-| FR-4  | Tasks and events with a fixed time slot (start → end)                    |
+| FR-4  | Tasks with a fixed time slot (start → end)                    |
 | FR-5  | Task description (text); links are embedded in the text                  |
 | FR-6  | Task attachments: files                                                  |
 | FR-7  | Categories with custom colors                                            |

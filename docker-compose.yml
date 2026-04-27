@@ -21,13 +21,16 @@ services:
   backend:
     build: .
     image: ghcr.io/${ORG:-ccr}/server:${VERSION:-latest}
-    expose:
-      - "8080"
+    ports:
+      - "8080:8080"
+      - "8081:8081"
     environment:
       - DATABASE_URL=postgres://user:pass@postgres:5432/taskplanner?sslmode=disable
       - JWT_SECRET=${JWT_SECRET}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
       - FILE_STORAGE_PATH=/data/attachments
+      - ADMIN_SECRET=${ADMIN_SECRET}
+      - ADMIN_PORT=:8081
     volumes:
       - attachments_data:/data/attachments
     depends_on:
