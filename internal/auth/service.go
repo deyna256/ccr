@@ -24,6 +24,20 @@ type jwtClaims struct {
 	UserID string `json:"uid"`
 }
 
+type Storage interface {
+	CreateUser(ctx context.Context, email, hash string) (User, error)
+	GetUserByEmail(ctx context.Context, email string) (User, error)
+	GetUserByID(ctx context.Context, id string) (User, error)
+	SetAdmin(ctx context.Context, userID string, isAdmin bool) error
+	UpdateLastLogin(ctx context.Context, userID string) error
+	ListUserStats(ctx context.Context) ([]UserStats, error)
+	CreateRefreshTokenFamily(ctx context.Context, userID, token string, expiresAt time.Time) (familyID string, err error)
+	GetRefreshToken(ctx context.Context, token string) (RefreshToken, error)
+	AdvanceTokenFamily(ctx context.Context, familyID string, oldToken, newToken string, newExpiresAt time.Time) (reused bool, err error)
+	RevokeAllInFamily(ctx context.Context, familyID string) error
+	RevokeRefreshToken(ctx context.Context, token string) error
+}
+
 type Service struct {
 	storage          Storage
 	jwtSecret        []byte
@@ -73,6 +87,9 @@ func (s *Service) Login(ctx context.Context, req LoginRequest) (AuthResponse, er
 	if err != nil {
 		return AuthResponse{}, fmt.Errorf("auth.service.Login: %w", err)
 	}
+	if err := s.storage.UpdateLastLogin(ctx, user.ID); err != nil {
+		s.log.WarnContext(ctx, "failed to update last login", slog.String("error", err.Error()))
+	}
 	return resp, nil
 }
 
@@ -89,17 +106,35 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (AuthRespons
 	if err != nil {
 		return AuthResponse{}, fmt.Errorf("auth.service.Refresh: %w", err)
 	}
-	if err := s.storage.RevokeRefreshToken(ctx, refreshToken); err != nil {
-		return AuthResponse{}, fmt.Errorf("auth.service.Refresh: %w", err)
+
+	newRefreshToken, err := generateRefreshToken()
+	if err != nil {
+		return AuthResponse{}, fmt.Errorf("generate refresh token: %w", err)
 	}
-	resp, err := s.issueTokenPair(ctx, rt.UserID)
+
+	now := time.Now()
+	reused, err := s.storage.AdvanceTokenFamily(ctx, rt.FamilyID, refreshToken, newRefreshToken, now.Add(refreshTTL))
 	if err != nil {
 		return AuthResponse{}, fmt.Errorf("auth.service.Refresh: %w", err)
 	}
-	return resp, nil
+
+	if reused {
+		s.log.WarnContext(ctx, "refresh token reuse detected, revoking all sessions",
+			slog.String("family_id", rt.FamilyID),
+			slog.String("user_id", rt.UserID),
+		)
+		return AuthResponse{}, ErrNotFound
+	}
+
+	accessToken, err := s.generateAccessToken(rt.UserID)
+	if err != nil {
+		return AuthResponse{}, fmt.Errorf("sign access token: %w", err)
+	}
+
+	return AuthResponse{AccessToken: accessToken, RefreshToken: newRefreshToken}, nil
 }
 
-func (s *Service) issueTokenPair(ctx context.Context, userID string) (AuthResponse, error) {
+func (s *Service) generateAccessToken(userID string) (string, error) {
 	now := time.Now()
 	claims := jwtClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -109,16 +144,21 @@ func (s *Service) issueTokenPair(ctx context.Context, userID string) (AuthRespon
 		},
 		UserID: userID,
 	}
-	accessToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.jwtSecret)
-	if err != nil {
-		return AuthResponse{}, fmt.Errorf("sign access token: %w", err)
-	}
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.jwtSecret)
+}
+
+func (s *Service) issueTokenPair(ctx context.Context, userID string) (AuthResponse, error) {
 	refreshToken, err := generateRefreshToken()
 	if err != nil {
 		return AuthResponse{}, fmt.Errorf("generate refresh token: %w", err)
 	}
-	if err := s.storage.CreateRefreshToken(ctx, userID, refreshToken, now.Add(refreshTTL)); err != nil {
-		return AuthResponse{}, err
+	now := time.Now()
+	if _, err := s.storage.CreateRefreshTokenFamily(ctx, userID, refreshToken, now.Add(refreshTTL)); err != nil {
+		return AuthResponse{}, fmt.Errorf("store refresh token: %w", err)
+	}
+	accessToken, err := s.generateAccessToken(userID)
+	if err != nil {
+		return AuthResponse{}, fmt.Errorf("generate access token: %w", err)
 	}
 	return AuthResponse{AccessToken: accessToken, RefreshToken: refreshToken}, nil
 }

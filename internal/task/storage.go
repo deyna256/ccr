@@ -3,26 +3,11 @@ package task
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 )
-
-type Storage interface {
-	List(ctx context.Context, userID string, f ListFilter) ([]Task, error)
-	GetByID(ctx context.Context, id, userID string) (Task, error)
-	Create(ctx context.Context, t Task) (Task, error)
-	Update(ctx context.Context, t Task) (Task, error)
-	UpdateStatus(ctx context.Context, id, userID, status string, completedAt, archivedAt *time.Time) (Task, error)
-	Delete(ctx context.Context, id, userID string) error
-
-	ListAttachments(ctx context.Context, taskID, userID string) ([]Attachment, error)
-	GetAttachment(ctx context.Context, attachmentID, userID string) (Attachment, error)
-	CreateAttachment(ctx context.Context, a Attachment) (Attachment, error)
-	DeleteAttachment(ctx context.Context, attachmentID, userID string) error
-}
 
 type PostgresStorage struct {
 	db  *sql.DB
@@ -92,57 +77,13 @@ func scanTask(row interface {
 const taskColumns = `id, user_id, type, title, description, start_time, end_time,
 	status, color, completed_at, archived_at, created_at, updated_at`
 
-func (s *PostgresStorage) logChange(ctx context.Context, userID, entityID, action string, oldValues, newValues map[string]interface{}) error {
-	oldJSON, newJSON := []byte("{}"), []byte("{}")
-	var err error
-	if oldValues != nil {
-		oldJSON, err = json.Marshal(oldValues)
-		if err != nil {
-			return fmt.Errorf("marshal old_values: %w", err)
-		}
-	}
-	if newValues != nil {
-		newJSON, err = json.Marshal(newValues)
-		if err != nil {
-			return fmt.Errorf("marshal new_values: %w", err)
-		}
-	}
-	_, err = s.db.ExecContext(ctx,
-		`INSERT INTO change_log (id, entity_type, entity_id, action, old_values, new_values, client_time, device_id, user_id)
-		 VALUES (gen_random_uuid(), 'task', $1, $2, $3, $4, NOW(), 'server', $5)`,
-		entityID, action, oldJSON, newJSON, userID,
+func (s *PostgresStorage) logChange(ctx context.Context, userID, entityID, action string) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO change_log (id, entity_type, entity_id, action, client_time, device_id, user_id)
+		 VALUES (gen_random_uuid(), 'task', $1, $2, NOW(), 'server', $3)`,
+		entityID, action, userID,
 	)
 	return err
-}
-
-func taskToMap(t Task) map[string]interface{} {
-	m := map[string]interface{}{
-		"id":         t.ID,
-		"type":       t.Type,
-		"title":      t.Title,
-		"status":     t.Status,
-		"created_at": t.CreatedAt,
-		"updated_at": t.UpdatedAt,
-	}
-	if t.Description != nil {
-		m["description"] = *t.Description
-	}
-	if t.StartTime != nil {
-		m["start_time"] = *t.StartTime
-	}
-	if t.EndTime != nil {
-		m["end_time"] = *t.EndTime
-	}
-	if t.Color != nil {
-		m["color"] = *t.Color
-	}
-	if t.CompletedAt != nil {
-		m["completed_at"] = *t.CompletedAt
-	}
-	if t.ArchivedAt != nil {
-		m["archived_at"] = *t.ArchivedAt
-	}
-	return m
 }
 
 func (s *PostgresStorage) List(ctx context.Context, userID string, f ListFilter) ([]Task, error) {
@@ -217,16 +158,13 @@ func (s *PostgresStorage) Create(ctx context.Context, t Task) (Task, error) {
 	if err != nil {
 		return Task{}, fmt.Errorf("task.storage.Create: %w", err)
 	}
-	if err := s.logChange(ctx, t.UserID, created.ID, "create", nil, taskToMap(created)); err != nil {
+	if err := s.logChange(ctx, t.UserID, created.ID, "create"); err != nil {
 		s.log.WarnContext(ctx, "failed to log task create", slog.String("task_id", created.ID), slog.String("error", err.Error()))
 	}
 	return created, nil
 }
 
 func (s *PostgresStorage) Update(ctx context.Context, t Task) (Task, error) {
-	old, _ := s.GetByID(ctx, t.ID, t.UserID)
-	oldMap := taskToMap(old)
-
 	row := s.db.QueryRowContext(ctx,
 		`UPDATE tasks SET
 		  type=$1, title=$2, description=$3, start_time=$4, end_time=$5, color=$6, updated_at=NOW()
@@ -241,16 +179,13 @@ func (s *PostgresStorage) Update(ctx context.Context, t Task) (Task, error) {
 	if err != nil {
 		return Task{}, fmt.Errorf("task.storage.Update: %w", err)
 	}
-	if err := s.logChange(ctx, t.UserID, t.ID, "update", oldMap, taskToMap(updated)); err != nil {
+	if err := s.logChange(ctx, t.UserID, t.ID, "update"); err != nil {
 		s.log.WarnContext(ctx, "failed to log task update", slog.String("task_id", t.ID), slog.String("error", err.Error()))
 	}
 	return updated, nil
 }
 
 func (s *PostgresStorage) UpdateStatus(ctx context.Context, id, userID, status string, completedAt, archivedAt *time.Time) (Task, error) {
-	old, _ := s.GetByID(ctx, id, userID)
-	oldMap := taskToMap(old)
-
 	row := s.db.QueryRowContext(ctx,
 		`UPDATE tasks SET status=$1, completed_at=$2, archived_at=$3, updated_at=NOW()
 		 WHERE id=$4 AND user_id=$5
@@ -264,16 +199,13 @@ func (s *PostgresStorage) UpdateStatus(ctx context.Context, id, userID, status s
 	if err != nil {
 		return Task{}, fmt.Errorf("task.storage.UpdateStatus: %w", err)
 	}
-	if err := s.logChange(ctx, userID, id, "update", oldMap, taskToMap(t)); err != nil {
+	if err := s.logChange(ctx, userID, id, "update"); err != nil {
 		s.log.WarnContext(ctx, "failed to log task status update", slog.String("task_id", id), slog.String("error", err.Error()))
 	}
 	return t, nil
 }
 
 func (s *PostgresStorage) Delete(ctx context.Context, id, userID string) error {
-	old, _ := s.GetByID(ctx, id, userID)
-	oldMap := taskToMap(old)
-
 	result, err := s.db.ExecContext(ctx,
 		`DELETE FROM tasks WHERE id=$1 AND user_id=$2`,
 		id, userID,
@@ -288,7 +220,7 @@ func (s *PostgresStorage) Delete(ctx context.Context, id, userID string) error {
 	if n == 0 {
 		return ErrNotFound
 	}
-	if err := s.logChange(ctx, userID, id, "delete", oldMap, nil); err != nil {
+	if err := s.logChange(ctx, userID, id, "delete"); err != nil {
 		s.log.WarnContext(ctx, "failed to log task delete", slog.String("task_id", id), slog.String("error", err.Error()))
 	}
 	return nil

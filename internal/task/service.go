@@ -13,14 +13,41 @@ import (
 	"github.com/rs/xid"
 )
 
-type Service struct {
-	storage         Storage
-	fileStoragePath string
-	log             *slog.Logger
+type Storage interface {
+	List(ctx context.Context, userID string, f ListFilter) ([]Task, error)
+	GetByID(ctx context.Context, id, userID string) (Task, error)
+	Create(ctx context.Context, t Task) (Task, error)
+	Update(ctx context.Context, t Task) (Task, error)
+	UpdateStatus(ctx context.Context, id, userID, status string, completedAt, archivedAt *time.Time) (Task, error)
+	Delete(ctx context.Context, id, userID string) error
+
+	ListAttachments(ctx context.Context, taskID, userID string) ([]Attachment, error)
+	GetAttachment(ctx context.Context, attachmentID, userID string) (Attachment, error)
+	CreateAttachment(ctx context.Context, a Attachment) (Attachment, error)
+	DeleteAttachment(ctx context.Context, attachmentID, userID string) error
 }
 
-func NewService(storage Storage, fileStoragePath string, log *slog.Logger) *Service {
-	return &Service{storage: storage, fileStoragePath: fileStoragePath, log: log}
+type FileStorage interface {
+	Open(taskID string) (File, error)
+	Create(taskID, filename string) (File, error)
+	Remove(path string) error
+	MkdirAll(path string, perms uint32) error
+}
+
+type File interface {
+	io.Writer
+	io.Closer
+	Path() string
+}
+
+type Service struct {
+	storage       Storage
+	fileStorage   FileStorage
+	log           *slog.Logger
+}
+
+func NewService(storage Storage, fileStorage FileStorage, log *slog.Logger) *Service {
+	return &Service{storage: storage, fileStorage: fileStorage, log: log}
 }
 
 func (s *Service) List(ctx context.Context, userID string, f ListFilter) ([]Task, error) {
@@ -143,37 +170,37 @@ func (s *Service) UploadAttachment(ctx context.Context, taskID, userID, name, mi
 	if _, err := s.storage.GetByID(ctx, taskID, userID); err != nil {
 		return Attachment{}, fmt.Errorf("task.service.UploadAttachment: %w", err)
 	}
-	dir := filepath.Join(s.fileStoragePath, taskID)
-	if err := os.MkdirAll(dir, 0750); err != nil {
+	dir := taskID
+	if err := s.fileStorage.MkdirAll(dir, 0750); err != nil {
 		return Attachment{}, fmt.Errorf("task.service.UploadAttachment: mkdir: %w", err)
 	}
 	ext := filepath.Ext(name)
-	filePath := filepath.Join(dir, xid.New().String()+ext)
-	f, err := os.Create(filePath)
+	filePath := xid.New().String() + ext
+	f, err := s.fileStorage.Create(dir, filePath)
 	if err != nil {
 		return Attachment{}, fmt.Errorf("task.service.UploadAttachment: create file: %w", err)
 	}
 	if _, err := io.Copy(f, r); err != nil {
 		_ = f.Close()
-		_ = os.Remove(filePath)
+		_ = s.fileStorage.Remove(f.Path())
 		return Attachment{}, fmt.Errorf("task.service.UploadAttachment: write file: %w", err)
 	}
 	if err := f.Close(); err != nil {
-		_ = os.Remove(filePath)
+		_ = s.fileStorage.Remove(f.Path())
 		return Attachment{}, fmt.Errorf("task.service.UploadAttachment: close file: %w", err)
 	}
 	a, err := s.storage.CreateAttachment(ctx, Attachment{
 		TaskID:   taskID,
 		Name:     name,
-		FilePath: filePath,
+		FilePath: f.Path(),
 		FileSize: size,
 		MimeType: mimeType,
 	})
 	if err != nil {
-		if rmErr := os.Remove(filePath); rmErr != nil && !errors.Is(rmErr, os.ErrNotExist) {
-			s.log.WarnContext(ctx, "failed to remove file after storage error", slog.String("path", filePath), slog.String("error", rmErr.Error()))
+		if rmErr := s.fileStorage.Remove(f.Path()); rmErr != nil {
+			return Attachment{}, fmt.Errorf("task.service.UploadAttachment: %w (file %s orphaned: %v)", err, f.Path(), rmErr)
 		}
-		return Attachment{}, fmt.Errorf("task.service.UploadAttachment: %w", err)
+		return Attachment{}, fmt.Errorf("task.service.UploadAttachment: %w (file %s orphaned)", err, f.Path())
 	}
 	return a, nil
 }
@@ -187,7 +214,7 @@ func (s *Service) DeleteAttachment(ctx context.Context, attachmentID, userID str
 	if err := s.storage.DeleteAttachment(ctx, attachmentID, userID); err != nil {
 		return fmt.Errorf("task.service.DeleteAttachment: %w", err)
 	}
-	if err := os.Remove(a.FilePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := s.fileStorage.Remove(a.FilePath); err != nil && !errors.Is(err, os.ErrNotExist) {
 		s.log.WarnContext(ctx, "failed to remove attachment file", slog.String("path", a.FilePath), slog.String("error", err.Error()))
 	}
 	return nil

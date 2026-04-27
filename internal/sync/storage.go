@@ -8,12 +8,6 @@ import (
 	"time"
 )
 
-type Storage interface {
-	CreateChangeLog(ctx context.Context, entry ChangeLogEntry, userID string) error
-	GetChangesSince(ctx context.Context, userID, deviceID string, since time.Time) ([]ChangeLogEntry, error)
-	GetTask(ctx context.Context, taskID, userID string) (map[string]interface{}, error)
-}
-
 type PostgresStorage struct {
 	db *sql.DB
 }
@@ -82,48 +76,4 @@ func (s *PostgresStorage) GetChangesSince(ctx context.Context, userID, deviceID 
 		entries = append(entries, e)
 	}
 	return entries, nil
-}
-
-func (s *PostgresStorage) GetTask(ctx context.Context, taskID, userID string) (map[string]interface{}, error) {
-	var id, taskType, title, status string
-	var description, color sql.NullString
-	var startTime, endTime sql.NullTime
-	var completedAt, archivedAt sql.NullTime
-
-	err := s.db.QueryRowContext(ctx,
-		`SELECT id, type, title, description, start_time, end_time, status, color, completed_at, archived_at
-		 FROM tasks WHERE id=$1 AND user_id=$2`,
-		taskID, userID,
-	).Scan(&id, &taskType, &title, &description, &startTime, &endTime, &status, &color, &completedAt, &archivedAt)
-	if err != nil {
-		return nil, fmt.Errorf("get task: %w", err)
-	}
-
-	data := map[string]interface{}{
-		"id":     id,
-		"type":   taskType,
-		"title":  title,
-		"status": status,
-	}
-
-	if description.Valid {
-		data["description"] = description.String
-	}
-	if color.Valid {
-		data["color"] = color.String
-	}
-	if startTime.Valid {
-		data["start_time"] = startTime.Time
-	}
-	if endTime.Valid {
-		data["end_time"] = endTime.Time
-	}
-	if completedAt.Valid {
-		data["completed_at"] = completedAt.Time
-	}
-	if archivedAt.Valid {
-		data["archived_at"] = archivedAt.Time
-	}
-
-	return data, nil
 }

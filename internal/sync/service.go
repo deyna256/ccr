@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type Storage interface {
+	CreateChangeLog(ctx context.Context, entry ChangeLogEntry, userID string) error
+	GetChangesSince(ctx context.Context, userID, deviceID string, since time.Time) ([]ChangeLogEntry, error)
+}
+
 type Service struct {
 	storage Storage
 	log     *slog.Logger
@@ -34,24 +39,7 @@ func (s *Service) Sync(ctx context.Context, userID string, req SyncRequest) (Syn
 		return SyncResponse{}, fmt.Errorf("sync.Service: %w", err)
 	}
 
-	if accepted == nil {
-		accepted = []string{}
-	}
-	if rejected == nil {
-		rejected = []RejectedChange{}
-	}
-	if serverChanges == nil {
-		serverChanges = []ChangeLogEntry{}
-	}
-
-	s.log.InfoContext(ctx, "sync completed",
-		slog.Int("accepted", len(accepted)),
-		slog.Int("rejected", len(rejected)),
-		slog.Int("server_changes", len(serverChanges)),
-	)
-
 	return SyncResponse{
-		Status:        "ok",
 		ServerChanges: serverChanges,
 		Accepted:      accepted,
 		Rejected:      rejected,
