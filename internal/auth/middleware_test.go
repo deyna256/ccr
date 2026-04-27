@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/task-planner/server/internal/auth"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/task-planner/server/internal/auth"
 )
 
 func issueTestToken(t *testing.T, secret string) string {
@@ -19,7 +19,9 @@ func issueTestToken(t *testing.T, secret string) string {
 		createUser: func(_ context.Context, _, _ string) (auth.User, error) {
 			return auth.User{ID: "user-123"}, nil
 		},
-		createRefreshToken: func(_ context.Context, _, _ string, _ time.Time) error { return nil },
+		createRefreshTokenFamily: func(_ context.Context, _, _ string, _ time.Time) (string, error) { return "", nil },
+		updateLastLogin:          func(_ context.Context, _ string) error { return nil },
+		listUserStats:            func(_ context.Context) ([]auth.UserStats, error) { return nil, nil },
 	}
 	svc := auth.NewService(st, secret, "refresh", slog.Default())
 	resp, err := svc.Register(context.Background(), auth.RegisterRequest{Email: "a@b.com", Password: "pass"})
@@ -45,12 +47,12 @@ func issueExpiredToken(t *testing.T, secret string) string {
 	return tokenStr
 }
 
-func testMiddleware(secret string) func(http.Handler) http.Handler {
-	return auth.Middleware(secret, slog.New(slog.NewTextHandler(io.Discard, nil)))
+func authMiddleware() func(http.Handler) http.Handler {
+	return auth.Middleware("secret", slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
 
 func TestMiddleware_missingHeader(t *testing.T) {
-	h := testMiddleware("secret")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	h := authMiddleware()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	rr := httptest.NewRecorder()
@@ -61,7 +63,7 @@ func TestMiddleware_missingHeader(t *testing.T) {
 }
 
 func TestMiddleware_malformedBearer(t *testing.T) {
-	h := testMiddleware("secret")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	h := authMiddleware()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -76,7 +78,7 @@ func TestMiddleware_malformedBearer(t *testing.T) {
 func TestMiddleware_validToken(t *testing.T) {
 	token := issueTestToken(t, "secret")
 	var gotID string
-	h := testMiddleware("secret")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := authMiddleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id, ok := auth.UserIDFromContext(r.Context())
 		if !ok {
 			t.Error("user ID not in context")
@@ -97,7 +99,7 @@ func TestMiddleware_validToken(t *testing.T) {
 }
 
 func TestMiddleware_invalidToken(t *testing.T) {
-	h := testMiddleware("secret")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	h := authMiddleware()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -111,7 +113,7 @@ func TestMiddleware_invalidToken(t *testing.T) {
 
 func TestMiddleware_expiredToken(t *testing.T) {
 	token := issueExpiredToken(t, "secret")
-	h := testMiddleware("secret")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	h := authMiddleware()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)

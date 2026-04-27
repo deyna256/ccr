@@ -25,7 +25,7 @@ func newTestLogger(buf *bytes.Buffer) *slog.Logger {
 }
 
 type stubStorage struct {
-	changes      []sync.ChangeLogEntry
+	changes     []sync.ChangeLogEntry
 	createErr   error
 	createCount int
 }
@@ -43,13 +43,9 @@ func (s *stubStorage) GetChangesSince(_ context.Context, _ string, _ string, _ t
 	return nil, nil
 }
 
-func (s *stubStorage) GetTask(_ context.Context, _ string, _ string) (map[string]interface{}, error) {
-	return nil, nil
-}
-
 type userIDKey struct{}
 
-func setUserIDInContext(ctx context.Context, _ string) context.Context {
+func setUserIDInContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, userIDKey{}, "user-1")
 }
 
@@ -68,7 +64,7 @@ func TestService_Sync_processesChanges(t *testing.T) {
 		ClientTime: time.Now(),
 	}
 
-	ctx := setUserIDInContext(context.Background(), "user-1")
+	ctx := setUserIDInContext(context.Background())
 	_, err := svc.Sync(ctx, "user-1", sync.SyncRequest{
 		DeviceID: "device-1",
 		LastSync: "",
@@ -94,7 +90,7 @@ func TestService_Sync_emptyChanges(t *testing.T) {
 
 	svc := sync.NewService(stub, log)
 
-	ctx := setUserIDInContext(context.Background(), "user-1")
+	ctx := setUserIDInContext(context.Background())
 	resp, err := svc.Sync(ctx, "user-1", sync.SyncRequest{
 		DeviceID: "device-1",
 		LastSync: "",
@@ -104,8 +100,8 @@ func TestService_Sync_emptyChanges(t *testing.T) {
 		t.Fatalf("sync failed: %v", err)
 	}
 
-	if resp.Status != "ok" {
-		t.Errorf("status = %q, want %q", resp.Status, "ok")
+	if len(resp.Accepted) != 0 {
+		t.Errorf("accepted = %d, want 0", len(resp.Accepted))
 	}
 }
 
@@ -116,7 +112,7 @@ func TestService_Sync_withLastSync(t *testing.T) {
 
 	svc := sync.NewService(stub, log)
 
-	ctx := setUserIDInContext(context.Background(), "user-1")
+	ctx := setUserIDInContext(context.Background())
 	lastSync := time.Now().Add(-1 * time.Hour)
 	resp, err := svc.Sync(ctx, "user-1", sync.SyncRequest{
 		DeviceID: "device-1",
@@ -127,8 +123,8 @@ func TestService_Sync_withLastSync(t *testing.T) {
 		t.Fatalf("sync failed: %v", err)
 	}
 
-	if resp.Status != "ok" {
-		t.Errorf("status = %q, want %q", resp.Status, "ok")
+	if len(resp.Accepted) != 0 {
+		t.Errorf("accepted = %d, want 0", len(resp.Accepted))
 	}
 }
 
@@ -139,7 +135,7 @@ func TestService_Sync_invalidLastSync_fallsBackToZeroTime(t *testing.T) {
 
 	svc := sync.NewService(stub, log)
 
-	ctx := setUserIDInContext(context.Background(), "user-1")
+	ctx := setUserIDInContext(context.Background())
 	_, err := svc.Sync(ctx, "user-1", sync.SyncRequest{
 		DeviceID: "device-1",
 		LastSync: "not-a-valid-time",
@@ -159,7 +155,7 @@ func TestService_Sync_partialFailure(t *testing.T) {
 
 	svc := sync.NewService(stub, log)
 
-	ctx := setUserIDInContext(context.Background(), "user-1")
+	ctx := setUserIDInContext(context.Background())
 	resp, err := svc.Sync(ctx, "user-1", sync.SyncRequest{
 		DeviceID: "device-1",
 		LastSync: "",
